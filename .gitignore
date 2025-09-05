@@ -117,10 +117,12 @@ Temporary Items
 
 # App specific
 FluidVoice.app/
+FluidVoice-*.app/
 FluidVoice.zip
 notarization.log
 *.xcodeproj/
 __pycache__
+.build-dev/
 
 # Environment
 .env
