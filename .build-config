@@ -1,0 +1,29 @@
+# FluidVoice Build Configuration
+# Source this file to set optimal build environment
+
+# Build Cache Configuration
+export SWIFT_BUILD_CACHE_PATH="$HOME/.swift-build-cache"
+
+# Swift Compiler Optimizations
+export SWIFT_EXEC_ARGS="-j$(sysctl -n hw.logicalcpu)"
+
+# Create cache directory
+mkdir -p "$SWIFT_BUILD_CACHE_PATH"
+
+# Development aliases for faster builds
+alias fv-build="./build-dev.sh"
+alias fv-release="CODE_SIGN_IDENTITY='EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25' ./build.sh"
+alias fv-test="swift test --parallel --build-path .build-dev"
+alias fv-clean="rm -rf .build-dev .build/apple/Products"
+alias fv-run="swift run --build-path .build-dev"
+
+echo "🚀 FluidVoice build environment loaded"
+echo "   Cache: $SWIFT_BUILD_CACHE_PATH"
+echo "   Cores: $(sysctl -n hw.logicalcpu)"
+echo ""
+echo "Available commands:"
+echo "   fv-build   - Fast development build"
+echo "   fv-release - Signed release build"
+echo "   fv-test    - Run tests"
+echo "   fv-run     - Build and run"
+echo "   fv-clean   - Clean build artifacts"

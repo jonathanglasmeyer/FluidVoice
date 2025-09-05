@@ -1,9 +1,9 @@
-# AudioWhisper 🎙️
+# FluidVoice 🎙️
 
 A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Nvidia Parakeet. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
 
 <p align="center">
-  <img src="https://github.com/mazdak/AudioWhisper/blob/master/AudioWhisperIcon.png" width="128" height="128" alt="AudioWhisper Icon">
+  <img src="https://github.com/mazdak/FluidVoice/blob/master/FluidVoiceIcon.png" width="128" height="128" alt="FluidVoice Icon">
 </p>
 
 ## Features ✨
@@ -29,21 +29,21 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 ## Installation 🛠️
 
 ### Option 1: Download Pre-built App
-1. Download the latest release from [Releases](https://github.com/mazdak/AudioWhisper/releases)
-2. Drag AudioWhisper.app to your Applications folder
+1. Download the latest release from [Releases](https://github.com/mazdak/FluidVoice/releases)
+2. Drag FluidVoice.app to your Applications folder
 3. Launch and configure your API key through the settings
 
 ### Option 2: Build from Source
 ```bash
 # Clone the repository
-git clone https://github.com/mazdak/AudioWhisper.git
-cd AudioWhisper
+git clone https://github.com/mazdak/FluidVoice.git
+cd FluidVoice
 
 # Build the app
 ./build.sh
 
 # Copy to Applications
-cp -r AudioWhisper.app /Applications/
+cp -r FluidVoice.app /Applications/
 ```
 
 ## Setup 🔧
@@ -90,7 +90,7 @@ cp -r AudioWhisper.app /Applications/
 
 ### First Run
 
-1. Launch AudioWhisper from Applications
+1. Launch FluidVoice from Applications
 2. The app will detect no API keys and show a welcome dialog
 3. Click OK to open Settings
 4. Choose your preferred provider:
@@ -119,24 +119,13 @@ The recording window shows helpful instructions at the bottom:
 
 ## Building from Source 👨‍💻
 
-### Prerequisites
-- Xcode 15.0 or later
-- Swift 5.9 or later
+For complete development setup, build instructions, testing guidelines, and technical documentation, see **[CLAUDE.md](CLAUDE.md)** - our comprehensive developer guide.
 
-### Development Build
+**Quick start for developers:**
 ```bash
-# Clone the repository
-git clone https://github.com/mazdak/AudioWhisper.git
-cd AudioWhisper
-
-# Run in development mode
-swift run
-
-# Build for release
-swift build -c release
-
-# Create full app bundle with icon
-./build.sh
+git clone https://github.com/mazdak/FluidVoice.git
+cd FluidVoice
+source .build-config && fv-build
 ```
 
 ## Privacy & Security 🔒
@@ -165,7 +154,7 @@ swift build -c release
 
 **Microphone Permission**
 - Go to System Settings → Privacy & Security → Microphone
-- Ensure AudioWhisper is enabled
+- Ensure FluidVoice is enabled
 
 **API Key Issues**
 - Verify your API key is correct in Settings
@@ -185,23 +174,22 @@ swift build -c release
 
 ## Contributing 🤝
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! For detailed development guidelines, architecture overview, testing procedures, and code style requirements, see **[CLAUDE.md](CLAUDE.md)**.
 
+**Quick contribution workflow:**
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. See [CLAUDE.md](CLAUDE.md) for complete setup and development guide
+3. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+4. Follow the testing and code style guidelines in CLAUDE.md
+5. Submit a Pull Request
 
 ## License 📄
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Dependencies 📦
+## Open Source 📦
 
-- [Alamofire](https://github.com/Alamofire/Alamofire) - MIT License
-- [HotKey](https://github.com/soffes/HotKey) - MIT License
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit) - MIT License
+FluidVoice is built with open source libraries including Alamofire, HotKey, and WhisperKit. See [CLAUDE.md](CLAUDE.md) for complete technical stack details.
 
 ## Acknowledgments 🙏
 
@@ -210,6 +198,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Supports Google Gemini as an alternative
 - Local transcription powered by WhisperKit with CoreML acceleration
 - Parakeet-MLX library for providing an easy accelerated Python interface
+
+---
+
+## Development Documentation 🔧
+
+- **[README.md](README.md)** (this file) - User installation, setup, and usage guide
+- **[CLAUDE.md](CLAUDE.md)** - Complete technical documentation for developers and AI assistants
 
 ---
 

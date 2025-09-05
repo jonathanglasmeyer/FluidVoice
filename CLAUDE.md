@@ -1,6 +1,154 @@
-# AudioWhisper — LLM Assistant Guidelines
+# FluidVoice — Developer & AI Guidelines
 
-This document provides instructions for AI assistants (e.g., ChatGPT, Claude) on how to work effectively with the AudioWhisper codebase. Follow these guidelines when analyzing, proposing changes, or implementing features.
+This document provides comprehensive technical instructions for developers and AI assistants working with the FluidVoice codebase. For user-facing information, installation, and usage instructions, see **[README.md](README.md)**.
+
+**Document Purpose**: Complete development guide covering architecture, build system, testing, and deployment.
+
+## ⚠️ CRITICAL: Permission Reset Policy
+
+**NEVER use broad tccutil reset commands without explicit user consent:**
+- ❌ `tccutil reset Accessibility` (resets ALL apps)
+- ❌ `tccutil reset Microphone` (resets ALL apps)
+- ❌ `tccutil reset All` (resets EVERYTHING)
+
+**Only use specific bundle ID resets:**
+- ✅ `tccutil reset Accessibility com.fluidvoice.app` (specific to FluidVoice)
+- ✅ `tccutil reset Microphone com.fluidvoice.app` (specific to FluidVoice)
+
+**Rationale**: Broad resets destroy user's permission settings for ALL applications, requiring them to re-grant permissions to every app they use.
+
+## Code Signing Configuration
+
+FluidVoice requires proper code signing for permission persistence:
+
+**Build Command**:
+```bash
+CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25" ./build.sh
+```
+
+**Certificate Details**:
+- Name: "FluidVoice Code Signing"
+- Type: Self-signed root certificate
+- Hash: EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25
+- Bundle ID: com.fluidvoice.app (verified working)
+
+**Never use `swift build` - always use `./build.sh` with CODE_SIGN_IDENTITY set.**
+
+## Build Performance Optimization
+
+FluidVoice includes optimized build scripts for faster development:
+
+**Development Builds** (Fast iteration):
+```bash
+# Load build environment with optimizations
+source .build-config
+
+# Fast development build (23s instead of 60s+)
+./build-dev.sh
+# or use alias:
+fv-build
+```
+
+**Build Environment Aliases**:
+- `fv-build` - Fast development build
+- `fv-release` - Signed release build 
+- `fv-test` - Run tests with parallel execution
+- `fv-run` - Build and run in development mode
+- `fv-clean` - Clean build artifacts
+
+**Environment Configuration** (.env support):
+Both build scripts now support `.env` file for configuration:
+```bash
+# Copy example and customize
+cp .env.example .env
+
+# Example .env content:
+CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25"
+AUDIO_WHISPER_VERSION="1.0.0"
+```
+
+Build scripts automatically load `.env` if present, enabling:
+- Consistent code signing across all builds
+- Version management
+- Custom build configurations
+- Team development standardization
+
+**Build Optimizations Implemented**:
+- Build cache at `~/.swift-build-cache` (preserves incremental builds)
+- Separate debug build path (`.build-dev`) to avoid conflicts
+- Parallel compilation using all available CPU cores
+- Compiler optimizations for release builds
+- Package.swift with proper build settings
+
+**Performance**: Development builds reduced from 60+ seconds to ~23 seconds.
+
+## Complete Development Setup
+
+### Prerequisites
+- **Xcode 15.0** or later (required for SwiftUI + AppKit integration)
+- **Swift 5.9** or later (uses modern concurrency features)
+- **macOS 14+** target (Sonoma APIs)
+- **Apple Silicon** recommended (M1/M2/M3 for optimal WhisperKit performance)
+
+### Development Workflow
+
+**Initial Setup**:
+```bash
+# Clone and setup
+git clone https://github.com/mazdak/FluidVoice.git
+cd FluidVoice
+
+# Load optimized build environment
+source .build-config
+
+# First build (downloads dependencies)
+./build-dev.sh
+```
+
+**Daily Development**:
+```bash
+# Fast development build (23s)
+fv-build
+
+# Build and run immediately  
+fv-run
+
+# Run tests with coverage
+fv-test
+
+# Clean when needed
+fv-clean
+```
+
+**Release Preparation**:
+```bash
+# Signed release build
+fv-release
+# or manually:
+CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25" ./build.sh
+```
+
+### Architecture Overview
+
+FluidVoice uses a **hybrid SwiftUI + AppKit** architecture:
+
+**Core Components**:
+- **Menu Bar App**: `NSApplication` with `LSUIElement=true`
+- **Global Hotkeys**: HotKey framework for ⌘⇧Space trigger
+- **Audio Pipeline**: AVFoundation → CoreML/API → Clipboard
+- **UI Layer**: SwiftUI views with AppKit integration
+- **Security**: Keychain for API keys, entitlements for microphone
+
+**Audio Processing Pipeline**:
+1. **AudioRecorder**: AVAudioEngine recording
+2. **AudioProcessor**: PCM conversion, validation
+3. **Transcription Services**: WhisperKit/OpenAI/Gemini/Parakeet
+4. **PasteManager**: Clipboard + auto-paste functionality
+
+**Local AI Integration**:
+- **WhisperKit**: CoreML models (39MB - 2.9GB), Neural Engine acceleration
+- **Parakeet-MLX**: Python subprocess, MLX framework, ~600MB model
+- **Model Management**: Automatic downloads, caching, version control
 
 ## 1. Purpose and Scope
 
@@ -13,7 +161,7 @@ This document provides instructions for AI assistants (e.g., ChatGPT, Claude) on
 
 ## 2. Libraries and Frameworks
 
-AudioWhisper relies on:
+FluidVoice relies on:
 - **SwiftUI** + **AppKit** for UI and macOS menu bar integration
 - **AVFoundation** for audio recording
 - **Alamofire** for HTTP requests and model downloads
@@ -49,13 +197,163 @@ When extending functionality, prefer these existing dependencies over introducin
 - Clean up observers, timers, and resources in `deinit` or task cancellation.
 - Annotate UI components with `@MainActor` when required.
 
-## 6. Pull Request Guidelines for AI Outputs
+## 6. Feature Backlog and Documentation
+
+FluidVoice maintains a structured feature backlog:
+- **Feature Index**: See `docs/features/README.md` for current feature priorities and status
+- **Feature Documentation**: Individual features documented in `docs/features/` directory
+- **Priority Focus**: High-priority items address critical UX issues (e.g., "Preparing Large Turbo" blocking)
+
+When implementing features, always check the backlog first to understand context and priorities.
+
+## 7. Dependencies & Technical Stack
+
+**Core Dependencies** (Package.swift):
+- **[Alamofire 5.10.2+](https://github.com/Alamofire/Alamofire)**: HTTP client for API requests, model downloads
+  - Used for: OpenAI/Gemini API calls, Hugging Face model downloads
+  - Features: Request/response validation, multipart uploads, certificate pinning
+- **[HotKey 0.2.1+](https://github.com/soffes/HotKey)**: Global keyboard shortcuts
+  - Used for: ⌘⇧Space global trigger, Space/ESC in recording window
+  - macOS Carbon API wrapper with Swift-friendly interface
+- **[WhisperKit 0.13.1+](https://github.com/argmaxinc/WhisperKit)**: CoreML Whisper models
+  - Used for: Local transcription, 6 model sizes, Neural Engine acceleration
+  - Features: Streaming, VAD, custom vocabulary, multilingual
+
+**Swift Package Dependencies** (transitive):
+- **Swift Collections**: OrderedSet, OrderedDictionary for model management
+- **Swift Transformers**: Tokenization, Hugging Face model loading
+- **Swift Argument Parser**: CLI argument parsing for build scripts
+
+**External Integrations**:
+- **Parakeet-MLX**: Python package, MLX acceleration, English-only
+- **UV**: Python package manager, bundled in app for dependency isolation
+- **CoreML**: Apple's ML framework, hardware acceleration
+- **AVFoundation**: Audio recording, format conversion, device management
+
+## 8. Advanced Configuration
+
+### Parakeet Python Integration
+
+**Requirements**:
+- Python 3.8+ with working MLX installation
+- Apple Silicon Mac (MLX requirement)
+- ~600MB model download on first use
+
+**Setup Process**:
+1. **Python Detection**: `PythonDetector.swift` validates Python path
+2. **UV Bootstrap**: `UvBootstrap.swift` manages Python dependencies
+3. **Model Download**: Automatic from Hugging Face on first transcription
+4. **Process Management**: Swift subprocess execution with proper cleanup
+
+**Configuration Files**:
+- `Sources/Resources/pyproject.toml`: Python dependencies
+- `Sources/parakeet_transcribe_pcm.py`: Transcription script
+- `Sources/Resources/bin/uv`: Bundled Python package manager
+
+### WhisperKit Model Management
+
+**Model Sizes & Performance**:
+- **tiny**: 39MB, ~2s transcription, basic quality
+- **base**: 74MB, ~3s transcription, good quality  
+- **small**: 244MB, ~5s transcription, better quality
+- **medium**: 769MB, ~8s transcription, high quality
+- **large**: 1.5GB, ~12s transcription, excellent quality
+- **large-v3**: 2.9GB, ~15s transcription, best quality
+
+**Storage Locations**:
+- Models: `~/Library/Caches/WhisperKit/`
+- Cache: `~/.swift-build-cache/` (build artifacts)
+- App Resources: `FluidVoice.app/Contents/Resources/`
+
+## 9. Testing & Quality Assurance
+
+**Test Structure**:
+```bash
+# Run all tests with coverage
+swift test --parallel --enable-code-coverage --build-path .build-dev
+
+# Individual test suites
+swift test --filter AudioRecorderTests
+swift test --filter SpeechToTextServiceTests
+swift test --filter ParakeetServiceTests
+```
+
+**Test Categories**:
+- **Unit Tests**: Core logic, data transformations, utilities
+- **Integration Tests**: API calls, model loading, audio processing
+- **Mock Tests**: External dependencies, network calls, file system
+- **UI Tests**: SwiftUI view rendering, user interactions (limited)
+
+**Critical Test Areas**:
+- Audio format validation and conversion
+- API key security (never logged or exposed)
+- Model download and caching behavior
+- Hotkey registration and cleanup
+- Memory management for large audio buffers
+
+## 10. Release & Distribution
+
+**Release Build Process**:
+1. **Version Bump**: Update `VERSION` file
+2. **Build**: `fv-release` (with code signing)
+3. **Testing**: Full integration test suite
+4. **Notarization**: Apple notarization (optional, requires dev account)
+5. **Distribution**: GitHub Releases, direct download
+
+**Code Signing Details**:
+- **Identity**: `EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25`
+- **Bundle ID**: `com.fluidvoice.app` (registered, working)
+- **Entitlements**: Microphone access, network client
+- **Hardened Runtime**: Required for distribution
+
+**App Bundle Structure**:
+```
+FluidVoice.app/
+├── Contents/
+│   ├── MacOS/FluidVoice              # Main executable
+│   ├── Resources/
+│   │   ├── AppIcon.icns             # App icon
+│   │   ├── parakeet_transcribe_pcm.py
+│   │   ├── mlx_semantic_correct.py
+│   │   ├── pyproject.toml
+│   │   └── bin/uv                   # Bundled Python manager
+│   └── Info.plist                   # App metadata
+```
+
+## 11. Pull Request Guidelines for AI Outputs
 
 - Provide minimal, focused patches for the requested change.
-- Run `swift build`, `swift test`, and any linting checks before submitting.
+- Use `./build-dev.sh` for development testing and `fv-test` for running tests.
+- Always use the optimized build system instead of plain `swift build`.
 - Do not introduce unrelated changes or fix pre-existing warnings.
 - Include a brief rationale and testing steps in the PR description.
+- Reference relevant sections of this document for context.
+
+## 12. Performance Benchmarks
+
+**Build Performance** (16-core Apple Silicon):
+- **Development Build**: ~23 seconds (debug, incremental)
+- **Clean Development Build**: ~45 seconds (debug, fresh)
+- **Release Build**: ~60 seconds (optimized, universal binary)
+- **Test Suite**: ~15 seconds (parallel execution)
+
+**Runtime Performance**:
+- **App Launch**: <2 seconds (menu bar app)
+- **Recording Start**: <500ms (hotkey to window)
+- **WhisperKit Transcription**: 2-15s (model dependent)
+- **API Transcription**: 3-8s (network dependent)
+- **Memory Usage**: ~50MB baseline, ~200MB during transcription
 
 ---
 
-*This file is intended solely for guiding AI assistants. Do not expose it in end-user documentation.*
+---
+
+## Quick Navigation
+
+- **[README.md](README.md)** - User installation, setup, and usage
+- **[CLAUDE.md](CLAUDE.md)** - This document: Complete developer guide
+- **`.build-config`** - Build environment setup
+- **`build-dev.sh`** - Fast development builds
+- **`build.sh`** - Production release builds
+
+*This file contains technical implementation details for developers and AI assistants. For end-user documentation, see README.md.*

@@ -3,9 +3,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "AudioWhisper",
+    name: "FluidVoice",
     platforms: [
         .macOS(.v14)
+    ],
+    products: [
+        .executable(name: "FluidVoice", targets: ["FluidVoice"])
     ],
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.10.2"),
@@ -14,7 +17,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "AudioWhisper",
+            name: "FluidVoice",
             dependencies: ["Alamofire", "HotKey", "WhisperKit"],
             path: "Sources",
             exclude: ["__pycache__", "VersionInfo.swift.template"],
@@ -24,13 +27,20 @@ let package = Package(
                 .copy("mlx_semantic_correct.py"),
                 // Bundle additional resources like uv binary and lock files
                 .copy("Resources")
+            ],
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug)),
+                .unsafeFlags(["-O", "-whole-module-optimization"], .when(configuration: .release))
             ]
         ),
         .testTarget(
-            name: "AudioWhisperTests",
-            dependencies: ["AudioWhisper"],
+            name: "FluidVoiceTests",
+            dependencies: ["FluidVoice"],
             path: "Tests",
-            exclude: ["README.md", "test_parakeet_transcribe.py"]
+            exclude: ["README.md", "test_parakeet_transcribe.py"],
+            swiftSettings: [
+                .define("DEBUG", .when(configuration: .debug))
+            ]
         )
     ]
 )
