@@ -2,6 +2,7 @@
 
 ## 🚀 High Priority Features
 
+- **[Parakeet v3 Multilingual Upgrade](parakeet-v3-multilingual-upgrade.md)** 🔥 **HIGH PRIORITY** - Upgrade to 25 European languages with 2-5x German transcription speed improvement
 - **[Express Mode: Background Recording](express-mode-background-recording.md)** ⚠️ **IN PROGRESS** - WhisperFlow-like hotkey start/stop, architecture complete but transcription service broken
 - **[Miniwindow Recording Indicator](miniwindow-recording-indicator.md)** - Small floating window with waveform during recording (WhisperFlow-inspired)
 - **[Fn Key Hotkey Support](fn-key-feature.md)** - Enable Function key combinations for global shortcuts 
@@ -9,6 +10,7 @@
 
 ## ✅ Completed Features
 
+- **[Performance Metrics & Language Detection](done/performance-metrics-language-detection.md)** ✅ **DONE** - Comprehensive transcription benchmarks and German language fix
 - **[Model Preloading & Streaming UX](done/model-preloading-feature.md)** ✅ **DONE** - PreloadManager system eliminates first-use delays
 - **[WhisperKit Preload System](done/whisperkit-preload-system.md)** ✅ **DONE** - App-idle preloading with warmup cycles
 
@@ -16,7 +18,9 @@
 
 | Feature | Priority | Status | Impact |
 |---------|----------|--------|--------|
+| Parakeet v3 Multilingual | High | 📋 **Planned** | Performance Critical - 2-5x German transcription speed + 25 languages |
 | Express Mode | High | ⚠️ **In Progress** | UX Innovation - architecture done, transcription broken |
+| Performance Metrics & Language Detection | High | ✅ **Completed** | Quality Critical - German transcription + benchmarking |
 | Model Preloading | High | ✅ **Completed** | UX Critical - eliminates worst user experience |
 | WhisperKit Preload System | High | ✅ **Completed** | Performance - app-idle preloading with warmup |
 | Miniwindow Indicator | Medium | Not Started | UX Polish - elegant recording feedback |
