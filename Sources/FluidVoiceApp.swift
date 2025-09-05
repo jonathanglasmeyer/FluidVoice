@@ -481,7 +481,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             do {
                 // 🧪 TEST MODE: Use pre-recorded audio file for silent testing
-                let testAudioPath = "/Users/jonathan.glasmeyer/Downloads/127389__acclivity__thetimehascome.wav"
+                let testAudioPath = "/Users/jonathan.glasmeyer/Downloads/12770092-94b0-4c06-bf19-07346d0e6c6b.wav"
                 let testAudioURL = URL(fileURLWithPath: testAudioPath)
                 let finalAudioURL = FileManager.default.fileExists(atPath: testAudioPath) ? testAudioURL : audioURL
                 
@@ -521,29 +521,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Logger.app.infoDev("✅ Transcription completed: \(transcribedText.prefix(50))...")
                 Logger.app.infoDev("🧪 DEBUG: Full transcription is [\(transcribedText)]")
                 
-                // Copy to clipboard
+                // Auto-paste transcribed text
+                Logger.app.infoDev("🔄 Auto-pasting transcribed text...")
                 await MainActor.run {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(transcribedText, forType: .string)
-                }
-                
-                // Auto-paste if SmartPaste is enabled
-                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                if enableSmartPaste {
-                    Logger.app.infoDev("🔄 Auto-pasting transcribed text...")
-                    await MainActor.run {
-                        let pasteManager = PasteManager()
-                        pasteManager.pasteToActiveApp()
-                    }
-                } else {
-                    Logger.app.infoDev("📋 Text copied to clipboard")
+                    let pasteManager = PasteManager()
+                    pasteManager.pasteText(transcribedText)
                 }
                 
                 // TODO: Save to history later
-                Logger.app.infoDev("📊 Transcription saved to clipboard")
+                // Logger.app.infoDev("📊 Transcription saved to clipboard")
                 
-                Logger.app.infoDev("🎉 Background transcription completed successfully")
+                Logger.app.info("✅ Transcription completed successfully")
                 
             } catch {
                 Logger.app.errorDev("❌ Background transcription failed: \(error.localizedDescription)")

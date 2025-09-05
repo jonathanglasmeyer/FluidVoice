@@ -52,17 +52,21 @@ class PasteManager: ObservableObject {
     private let accessibilityManager = AccessibilityPermissionManager()
     
     /// Attempts to paste text to the currently active application
-    /// Uses CGEvent to simulate ⌘V 
+    /// Uses Unicode-Typing
     func pasteToActiveApp() {
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+        // Use Unicode-Typing
+        performUnicodeTyping()
+    }
+    
+    /// Directly types the provided text using Unicode-Typing
+    func pasteText(_ text: String) {
+        // Copy text to clipboard first for Unicode-Typing to work
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
         
-        if enableSmartPaste {
-            // Use Unicode-Typing instead of CGEvent ⌘V
-            performUnicodeTyping()
-        } else {
-            // Just copy to clipboard - user will manually paste
-            // Text is already in clipboard from transcription
-        }
+        // Use Unicode-Typing
+        performUnicodeTyping()
     }
     
     /// SmartPaste function that attempts to paste text into a specific application
@@ -73,13 +77,6 @@ class PasteManager: ObservableObject {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        
-        guard enableSmartPaste else {
-            // SmartPaste is disabled in settings - fail with appropriate error
-            handlePasteResult(.failure(PasteError.targetAppNotAvailable))
-            return
-        }
         
         // CRITICAL: Check accessibility permission without prompting - never bypass this check
         // If this fails, we must NOT attempt to proceed with CGEvent operations
@@ -328,11 +325,11 @@ class PasteManager: ObservableObject {
             return // Empty clipboard is not an error
         }
         
-        Logger.app.infoDev("🔤 Starting Unicode-Typing for \(textToType.count) characters")
+        // Logger.app.infoDev("🔤 Starting Unicode-Typing for \(textToType.count) characters")
         
         // Simple approach: just type to whatever app is currently active
         if let frontmostApp = NSWorkspace.shared.frontmostApplication {
-            Logger.app.infoDev("🎯 Typing to currently active app: \(frontmostApp.localizedName ?? "Unknown") (PID: \(frontmostApp.processIdentifier))")
+            // Logger.app.infoDev("🎯 Typing to currently active app: \(frontmostApp.localizedName ?? "Unknown") (PID: \(frontmostApp.processIdentifier))")
         } else {
             Logger.app.warning("⚠️ No active app found - proceeding anyway")
         }
@@ -344,7 +341,7 @@ class PasteManager: ObservableObject {
         
         // Split text into manageable chunks (100 characters)
         let chunks = textToType.chunked(into: 100)
-        Logger.app.infoDev("📦 Processing \(chunks.count) text chunks")
+        // Logger.app.infoDev("📦 Processing \(chunks.count) text chunks")
         
         // Process each chunk
         for (index, chunk) in chunks.enumerated() {
@@ -356,7 +353,7 @@ class PasteManager: ObservableObject {
             }
         }
         
-        Logger.app.infoDev("✅ Unicode-Typing completed successfully")
+        // Logger.app.infoDev("✅ Unicode-Typing completed successfully")
     }
     
     private func processUnicodeChunk(_ chunk: String, chunkIndex: Int, source: CGEventSource) throws {
@@ -382,7 +379,7 @@ class PasteManager: ObservableObject {
         for tapLocation in tapLocations {
             unicodeEvent.post(tap: tapLocation)
             posted = true
-            Logger.app.infoDev("📤 Posted Unicode chunk \(chunkIndex + 1)")
+            // Logger.app.infoDev("📤 Posted Unicode chunk \(chunkIndex + 1)")
             break // Only use first tap location for now, can add retry logic later
         }
         
