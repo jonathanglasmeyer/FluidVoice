@@ -50,6 +50,61 @@ FluidVoice logs at **Info level**, which is standard for structured application 
 
 **Never use Console.app** - terminal commands are faster and more precise.
 
+### Debug Logging System
+
+**Problem Solved**: macOS automatically redacts sensitive data in system logs with `<private>` placeholders, hiding critical debug information during development.
+
+**Solution**: FluidVoice implements debug logging extensions in `Sources/Logger.swift` that bypass privacy redaction in DEBUG builds:
+
+**Debug Logging Methods**:
+- `Logger.app.devInfo("message")` - Info-level logging with privacy bypass in debug builds
+- `Logger.app.devError("message")` - Error-level logging with privacy bypass in debug builds  
+- `Logger.app.devWarning("message")` - Warning-level logging with privacy bypass in debug builds
+
+**Implementation**:
+```swift
+#if DEBUG
+extension Logger {
+    func devInfo(_ message: String) {
+        self.info("\(message, privacy: .public)")
+    }
+    
+    func devError(_ message: String) {
+        self.error("\(message, privacy: .public)")
+    }
+    
+    func devWarning(_ message: String) {
+        self.warning("\(message, privacy: .public)")
+    }
+}
+#endif
+```
+
+**Usage Guidelines**:
+- **Development**: Use `devInfo()`, `devError()`, `devWarning()` for sensitive data logging
+- **Production**: Automatically respects macOS privacy in release builds (`.public` ignored)
+- **Migration**: Replace `Logger.app.info()` with `Logger.app.devInfo()` for Express Mode related logging
+
+**Updated Files**:
+- `Sources/PasteManager.swift` - All Unicode-Typing and CGEvent logging converted to devInfo
+- `Sources/DataManager.swift` - All transcription record logging converted to devInfo
+- `Sources/HistoryWindowManager.swift` - Window management logging converted to devInfo
+
+**Benefits**:
+- **Full visibility** in debug builds - see complete transcription text, app names, and debug states
+- **Privacy protection** in release builds - automatic redaction remains active
+- **Zero performance impact** - `#if DEBUG` compilation conditional
+
+**⚠️ Important Trade-offs**:
+- **Production visibility loss**: `devInfo()` logs are completely invisible in release builds, unlike `info()` which shows with privacy redaction
+- **Operations blind spots**: Beta testers and production users cannot provide meaningful log information for troubleshooting
+- **Mass replacement risk**: Converting all `.info()` to `.devInfo()` removes valuable production telemetry
+
+**Best Practice Guidance**:
+- **Use `.devInfo()`** for: Sensitive data (app names, transcription text, user input), internal state details, debug-specific flow tracking
+- **Keep `.info()`** for: High-level success/failure events, feature usage milestones, error recovery notifications, system integration status
+- **FluidVoice context**: Mass replacement acceptable due to personal-use nature, rich UI error handling, and privacy-first approach
+
 ## ⚠️ CRITICAL: Interactive Testing Boundaries
 
 **AI assistants DO NOT perform interactive app validation** - user handles all interactive testing.
