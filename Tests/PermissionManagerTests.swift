@@ -1,6 +1,6 @@
 import XCTest
 import AVFoundation
-@testable import AudioWhisper
+@testable import FluidVoice
 
 final class PermissionManagerTests: XCTestCase {
     

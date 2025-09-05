@@ -3,7 +3,7 @@ import os.log
 
 /// Utility to detect Python installations with specific packages
 struct PythonDetector {
-    static let logger = Logger(subsystem: "com.audiowhisper.app", category: "PythonDetector")
+    static let logger = Logger(subsystem: "com.fluidvoice.app", category: "PythonDetector")
     
     /// Find Python executable with mlx-lm installed
     static func findPythonWithMLX() async -> String? {

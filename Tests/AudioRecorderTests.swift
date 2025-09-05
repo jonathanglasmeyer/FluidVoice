@@ -1,7 +1,7 @@
 import XCTest
 import AVFoundation
 import Combine
-@testable import AudioWhisper
+@testable import FluidVoice
 
 class AudioRecorderTests: XCTestCase {
     var audioRecorder: AudioRecorder!

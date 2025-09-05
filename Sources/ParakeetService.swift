@@ -35,7 +35,7 @@ struct ParakeetResponse: Codable {
 }
 
 class ParakeetService {
-    private let logger = Logger(subsystem: "com.audiowhisper.app", category: "ParakeetService")
+    private let logger = Logger(subsystem: "com.fluidvoice.app", category: "ParakeetService")
     
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
 
@@ -242,7 +242,7 @@ class ParakeetService {
                 process.standardError = errorPipe
 
                 // Use a serial queue to synchronize continuation resumption
-                let continuationQueue = DispatchQueue(label: "com.audiowhisper.parakeet.continuation")
+                let continuationQueue = DispatchQueue(label: "com.fluidvoice.parakeet.continuation")
                 var continuationResumed = false
 
                 // Set up timeout handling (30 seconds for transcription)
@@ -342,7 +342,7 @@ class ParakeetService {
             process.standardError = pipe
 
             // Use a serial queue to synchronize continuation resumption
-            let continuationQueue = DispatchQueue(label: "com.audiowhisper.parakeet.validation.continuation")
+            let continuationQueue = DispatchQueue(label: "com.fluidvoice.parakeet.validation.continuation")
             var continuationResumed = false
 
             // Set up timeout for validation (10 seconds)

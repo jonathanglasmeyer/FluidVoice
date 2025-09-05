@@ -46,7 +46,7 @@ struct WelcomeView: View {
                 .foregroundColor(.accentColor)
                 .symbolRenderingMode(.hierarchical)
             
-            Text("Welcome to AudioWhisper")
+            Text("Welcome to FluidVoice")
                 .font(.largeTitle)
                 .fontWeight(.semibold)
             
@@ -68,7 +68,7 @@ struct WelcomeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Privacy-First Local Transcription")
                         .font(.headline)
-                    Text("AudioWhisper uses Apple's Neural Engine to transcribe audio locally on your Mac. Your audio never leaves your device.")
+                    Text("FluidVoice uses Apple's Neural Engine to transcribe audio locally on your Mac. Your audio never leaves your device.")
                         .font(.callout)
                         .foregroundColor(.secondary)
                 }
@@ -175,7 +175,7 @@ struct WelcomeView: View {
     private var setupOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label {
-                Text("AudioWhisper will use local AI transcription by default. No API keys or internet connection required!")
+                Text("FluidVoice will use local AI transcription by default. No API keys or internet connection required!")
                     .font(.callout)
             } icon: {
                 Image(systemName: "checkmark.circle.fill")
@@ -199,7 +199,7 @@ struct WelcomeView: View {
                 .font(.headline)
                 .foregroundColor(.green)
             
-            Text("AudioWhisper can automatically paste transcribed text using CGEvent-based automation:")
+            Text("FluidVoice can automatically paste transcribed text using CGEvent-based automation:")
                 .font(.callout)
             
             VStack(alignment: .leading, spacing: 8) {

@@ -1,5 +1,5 @@
 import XCTest
-@testable import AudioWhisper
+@testable import FluidVoice
 
 final class ShowAudioFileButtonTest: XCTestCase {
     

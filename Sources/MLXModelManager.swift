@@ -23,7 +23,7 @@ final class MLXModelManager: ObservableObject {
     @Published var downloadProgress: [String: String] = [:]
     @Published var totalCacheSize: Int64 = 0
     
-    private let logger = Logger(subsystem: "com.audiowhisper.app", category: "MLXModelManager")
+    private let logger = Logger(subsystem: "com.fluidvoice.app", category: "MLXModelManager")
     private let cacheDirectory: URL
 
     static let parakeetRepo = "mlx-community/parakeet-tdt-0.6b-v2"

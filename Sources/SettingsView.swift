@@ -109,8 +109,8 @@ struct SettingsView: View {
             Section("General") {
                 Toggle("Start at Login", isOn: $startAtLogin)
                     .toggleStyle(.switch)
-                    .accessibilityLabel("Start AudioWhisper at login")
-                    .accessibilityHint("When enabled, AudioWhisper will automatically start when you log into your Mac")
+                    .accessibilityLabel("Start FluidVoice at login")
+                    .accessibilityHint("When enabled, FluidVoice will automatically start when you log into your Mac")
                     .onChange(of: startAtLogin) { oldValue, newValue in
                         updateLoginItem(enabled: newValue)
                     }
@@ -213,9 +213,9 @@ struct SettingsView: View {
                         
                         Button("Save") {
                             if transcriptionProvider == .openai {
-                                saveAPIKey(openAIKey, service: "AudioWhisper", account: "OpenAI")
+                                saveAPIKey(openAIKey, service: "FluidVoice", account: "OpenAI")
                             } else {
-                                saveAPIKey(geminiKey, service: "AudioWhisper", account: "Gemini")
+                                saveAPIKey(geminiKey, service: "FluidVoice", account: "Gemini")
                             }
                         }
                         .buttonStyle(.bordered)
@@ -712,8 +712,8 @@ struct SettingsView: View {
     }
     
     private func loadAPIKeys() {
-        openAIKey = keychainService.getQuietly(service: "AudioWhisper", account: "OpenAI") ?? ""
-        geminiKey = keychainService.getQuietly(service: "AudioWhisper", account: "Gemini") ?? ""
+        openAIKey = keychainService.getQuietly(service: "FluidVoice", account: "OpenAI") ?? ""
+        geminiKey = keychainService.getQuietly(service: "FluidVoice", account: "Gemini") ?? ""
     }
     
     func saveAPIKey(_ key: String, service: String, account: String) {
@@ -833,13 +833,13 @@ struct SettingsView: View {
 
     private func venvPythonPath() -> String {
         let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
-        let base = appSupport?.appendingPathComponent("AudioWhisper/python_project/.venv/bin/python3").path
+        let base = appSupport?.appendingPathComponent("FluidVoice/python_project/.venv/bin/python3").path
         return base ?? ""
     }
 
     private func revealEnvInFinder() {
         let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
-        let dir = appSupport?.appendingPathComponent("AudioWhisper/python_project/.venv/")
+        let dir = appSupport?.appendingPathComponent("FluidVoice/python_project/.venv/")
         if let dir = dir {
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: dir.path)
         }
@@ -847,7 +847,7 @@ struct SettingsView: View {
 
     private func revealPromptsInFinder() {
         let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
-        let dir = appSupport?.appendingPathComponent("AudioWhisper/prompts/")
+        let dir = appSupport?.appendingPathComponent("FluidVoice/prompts/")
         if let dir = dir {
             // Ensure directory exists (created on startup), still guard here
             if !FileManager.default.fileExists(atPath: dir.path) {

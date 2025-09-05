@@ -25,7 +25,7 @@ class WelcomeWindow {
         )
         
         window.contentViewController = hostingController
-        window.title = "Welcome to AudioWhisper"
+        window.title = "Welcome to FluidVoice"
         window.isReleasedWhenClosed = false
         
         // Add window delegate to handle close button properly

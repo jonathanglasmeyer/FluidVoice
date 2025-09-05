@@ -1,6 +1,6 @@
 import XCTest
 import Foundation
-@testable import AudioWhisper
+@testable import FluidVoice
 
 class SpeechToTextServiceTests: XCTestCase {
     var service: SpeechToTextService!
@@ -188,7 +188,7 @@ class SpeechToTextServiceTests: XCTestCase {
         
         do {
             // Set up mock keychain to have an API key so we get to the file reading part
-            mockKeychain.saveQuietly("test-key", service: "AudioWhisper", account: "OpenAI")
+            mockKeychain.saveQuietly("test-key", service: "FluidVoice", account: "OpenAI")
             
             _ = try await service.transcribe(audioURL: invalidURL)
             XCTFail("Expected error due to invalid file URL")
@@ -205,12 +205,12 @@ class SpeechToTextServiceTests: XCTestCase {
         let mockKeychain = MockKeychainService()
         
         // Test that it returns nil when no key is found
-        let apiKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "OpenAI")
+        let apiKey = mockKeychain.getQuietly(service: "FluidVoice", account: "OpenAI")
         XCTAssertNil(apiKey)
         
         // Test saving and retrieving a key
-        mockKeychain.saveQuietly("test-api-key", service: "AudioWhisper", account: "OpenAI")
-        let retrievedKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "OpenAI")
+        mockKeychain.saveQuietly("test-api-key", service: "FluidVoice", account: "OpenAI")
+        let retrievedKey = mockKeychain.getQuietly(service: "FluidVoice", account: "OpenAI")
         XCTAssertEqual(retrievedKey, "test-api-key")
     }
     
@@ -220,12 +220,12 @@ class SpeechToTextServiceTests: XCTestCase {
         let _ = SpeechToTextService(keychainService: mockKeychain)
         
         // Test that it returns nil when no key is found
-        let apiKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "OpenAI")
+        let apiKey = mockKeychain.getQuietly(service: "FluidVoice", account: "OpenAI")
         XCTAssertNil(apiKey)
         
         // Test saving and retrieving a key
-        mockKeychain.saveQuietly("test-api-key", service: "AudioWhisper", account: "OpenAI")
-        let retrievedKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "OpenAI")
+        mockKeychain.saveQuietly("test-api-key", service: "FluidVoice", account: "OpenAI")
+        let retrievedKey = mockKeychain.getQuietly(service: "FluidVoice", account: "OpenAI")
         XCTAssertEqual(retrievedKey, "test-api-key")
     }
     

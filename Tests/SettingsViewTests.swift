@@ -2,7 +2,7 @@ import XCTest
 import SwiftUI
 import AVFoundation
 import ServiceManagement
-@testable import AudioWhisper
+@testable import FluidVoice
 
 class SettingsViewTests: XCTestCase {
     var mockKeychain: MockKeychain!
@@ -247,10 +247,10 @@ class SettingsViewTests: XCTestCase {
         let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
         
         // Save empty key
-        settingsView.saveAPIKey("", service: "AudioWhisper", account: "TestAccount")
+        settingsView.saveAPIKey("", service: "FluidVoice", account: "TestAccount")
         
         // Should return nil for empty key
-        let retrievedKey = settingsView.getAPIKey(service: "AudioWhisper", account: "TestAccount")
+        let retrievedKey = settingsView.getAPIKey(service: "FluidVoice", account: "TestAccount")
         XCTAssertNil(retrievedKey)
     }
     
@@ -342,8 +342,8 @@ class SettingsViewTests: XCTestCase {
         // Perform concurrent operations
         for i in 0..<10 {
             DispatchQueue.global().async {
-                settingsView.saveAPIKey("concurrent-key-\(i)", service: "AudioWhisper", account: "ConcurrentTest\(i)")
-                let retrievedKey = settingsView.getAPIKey(service: "AudioWhisper", account: "ConcurrentTest\(i)")
+                settingsView.saveAPIKey("concurrent-key-\(i)", service: "FluidVoice", account: "ConcurrentTest\(i)")
+                let retrievedKey = settingsView.getAPIKey(service: "FluidVoice", account: "ConcurrentTest\(i)")
                 XCTAssertEqual(retrievedKey, "concurrent-key-\(i)")
                 expectation.fulfill()
             }

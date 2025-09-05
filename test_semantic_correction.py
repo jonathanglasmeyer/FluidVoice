@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for AudioWhisper Semantic Correction features.
+Test script for FluidVoice Semantic Correction features.
 Tests all semantic correction modes: Off, Local (MLX), and Cloud (OpenAI/Gemini).
 """
 
@@ -14,7 +14,7 @@ import time
 PYTHON_PATH = os.environ.get(
     "AW_PYTHON",
     os.path.expanduser(
-        "~/Library/Application Support/AudioWhisper/python_project/.venv/bin/python3"
+        "~/Library/Application Support/FluidVoice/python_project/.venv/bin/python3"
     ),
 )
 
@@ -358,7 +358,7 @@ def compare_results(original, corrections):
 
 
 def main():
-    print_header("AudioWhisper Semantic Correction Test Suite")
+    print_header("FluidVoice Semantic Correction Test Suite")
 
     # Get API keys from environment
     openai_key = os.environ.get("OPENAI_API_KEY", "")

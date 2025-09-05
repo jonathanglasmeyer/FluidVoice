@@ -7,7 +7,7 @@ class ErrorPresenter {
     static let shared = ErrorPresenter()
     
     // Thread-safe properties with proper synchronization
-    private let queue = DispatchQueue(label: "com.audiowhisper.errorpresenter", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.fluidvoice.errorpresenter", qos: .userInitiated)
     private var _isTestEnvironment: Bool = false
     
     // Cached lowercased error patterns for efficient matching
@@ -19,7 +19,7 @@ class ErrorPresenter {
     ]
     
     // Logger for security and debugging
-    private let logger = Logger(subsystem: "com.audiowhisper.app", category: "ErrorPresenter")
+    private let logger = Logger(subsystem: "com.fluidvoice.app", category: "ErrorPresenter")
     
     var isTestEnvironment: Bool {
         get {
@@ -42,7 +42,7 @@ class ErrorPresenter {
         let sanitizedMessage = sanitizeErrorMessage(message)
         
         // Log error for debugging (sanitized version)
-        logger.error("Error presented: \(sanitizedMessage, privacy: .public)")
+        logger.error("Error presented: \(sanitizedMessage)")
         
         // Ensure we're on the main thread for UI operations
         Task { @MainActor in

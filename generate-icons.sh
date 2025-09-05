@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Generate app icons from source image
-SOURCE_IMAGE="AudioWhisperIcon.png"
-ICONSET_DIR="AudioWhisper.iconset"
+SOURCE_IMAGE="FluidVoiceIcon.png"
+ICONSET_DIR="FluidVoice.iconset"
 
 if [ ! -f "$SOURCE_IMAGE" ]; then
   echo "Error: $SOURCE_IMAGE not found!"

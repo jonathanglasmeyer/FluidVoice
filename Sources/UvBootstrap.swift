@@ -31,7 +31,7 @@ struct UvBootstrap {
     static func projectDir() throws -> URL {
         let fm = FileManager.default
         let appSupport = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("AudioWhisper", isDirectory: true)
+            .appendingPathComponent("FluidVoice", isDirectory: true)
         if !fm.fileExists(atPath: appSupport.path) {
             try fm.createDirectory(at: appSupport, withIntermediateDirectories: true)
         }
@@ -65,7 +65,7 @@ struct UvBootstrap {
         }
         // Per-user tools dir
         if let toolsURL = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("AudioWhisper/bin", isDirectory: true) {
+            .appendingPathComponent("FluidVoice/bin", isDirectory: true) {
             let url = toolsURL.appendingPathComponent("uv")
             if FileManager.default.isExecutableFile(atPath: url.path) {
                 if let ver = try? uvVersion(at: url) {

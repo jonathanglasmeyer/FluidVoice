@@ -54,14 +54,42 @@ swift build \
 BUILD_SUCCESS=$?
 
 if [ $BUILD_SUCCESS -eq 0 ]; then
+  echo "📦 Creating development app bundle..."
+  
+  # Create app bundle structure
+  APP_BUNDLE="FluidVoice-dev.app"
+  rm -rf "$APP_BUNDLE"
+  mkdir -p "$APP_BUNDLE/Contents/MacOS"
+  mkdir -p "$APP_BUNDLE/Contents/Resources"
+  
+  # Copy executable
+  cp ".build-dev/debug/FluidVoice" "$APP_BUNDLE/Contents/MacOS/"
+  
+  # Copy Info.plist
+  if [ -f "Info.plist" ]; then
+    cp "Info.plist" "$APP_BUNDLE/Contents/"
+  fi
+  
+  # Copy resources efficiently with symlinks
+  if [ -d "Sources/Resources" ]; then
+    # Remove the placeholder Resources directory
+    rmdir "$APP_BUNDLE/Contents/Resources" 2>/dev/null || true
+    # Create symlink to actual resources
+    ln -sf "../../../Sources/Resources" "$APP_BUNDLE/Contents/Resources"
+  fi
+  
+  # Code sign if identity available
+  if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
+    echo "🔐 Code signing development bundle..."
+    codesign -s "$CODE_SIGN_IDENTITY" "$APP_BUNDLE" 2>/dev/null || {
+      echo "⚠️  Code signing failed, but bundle created"
+    }
+  fi
+  
   END_TIME=$(date +%s)
   DURATION=$((END_TIME - START_TIME))
   echo "✅ Development build completed in ${DURATION}s"
-  
-  # Quick smoke test
-  if [ -f ".build-dev/debug/FluidVoice" ]; then
-    echo "🎯 Executable ready at .build-dev/debug/FluidVoice"
-  fi
+  echo "🎯 App bundle ready at $APP_BUNDLE"
 else
   echo "❌ Build failed!"
   exit 1

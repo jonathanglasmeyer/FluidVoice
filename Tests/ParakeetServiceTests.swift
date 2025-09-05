@@ -1,6 +1,6 @@
 import XCTest
 import Foundation
-@testable import AudioWhisper
+@testable import FluidVoice
 
 class ParakeetServiceTests: XCTestCase {
     

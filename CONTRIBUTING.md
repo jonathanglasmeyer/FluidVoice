@@ -1,6 +1,6 @@
-# Contributing to AudioWhisper
+# Contributing to FluidVoice
 
-Thank you for your interest in contributing to AudioWhisper! This guide will help you get started with development, testing, and distribution.
+Thank you for your interest in contributing to FluidVoice! This guide will help you get started with development, testing, and distribution.
 
 ## Table of Contents
 - [Development Setup](#development-setup)
@@ -25,8 +25,8 @@ Thank you for your interest in contributing to AudioWhisper! This guide will hel
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/AudioWhisper.git
-cd AudioWhisper
+git clone https://github.com/yourusername/FluidVoice.git
+cd FluidVoice
 ```
 
 2. Build the project to verify setup:
@@ -129,7 +129,7 @@ Only use `build.sh` when creating a release for distribution:
 This creates:
 - Universal binary (Apple Silicon + Intel)
 - Proper app bundle structure
-- App icon from AudioWhisperIcon.png
+- App icon from FluidVoiceIcon.png
 - Info.plist with required permissions
 
 ### Signed Release Build
@@ -164,7 +164,7 @@ For personal use without a developer account:
 
 ```bash
 # Ad-hoc sign after building
-codesign --force --deep --sign - AudioWhisper.app
+codesign --force --deep --sign - FluidVoice.app
 ```
 
 **Limitations:**
@@ -208,13 +208,13 @@ The build script handles signing automatically if identity is available.
 
 ```bash
 # Check if app is properly signed
-codesign --verify --verbose AudioWhisper.app
+codesign --verify --verbose FluidVoice.app
 
 # Check signature details
-codesign -dvv AudioWhisper.app
+codesign -dvv FluidVoice.app
 
 # Check Gatekeeper approval
-spctl -a -v AudioWhisper.app
+spctl -a -v FluidVoice.app
 ```
 
 ### Notarization
@@ -224,23 +224,23 @@ Notarization is required for distribution outside the Mac App Store:
 1. **Create App-Specific Password:**
    - Go to [appleid.apple.com](https://appleid.apple.com)
    - Sign in → Security → App-Specific Passwords
-   - Generate password for "AudioWhisper Notarization"
+   - Generate password for "FluidVoice Notarization"
 
 2. **Submit for Notarization:**
    Use `./build.sh --notarize` or manually:
    ```bash
    # Create zip
-   ditto -c -k --keepParent AudioWhisper.app AudioWhisper.zip
+   ditto -c -k --keepParent FluidVoice.app FluidVoice.zip
    
    # Submit
-   xcrun notarytool submit AudioWhisper.zip \
+   xcrun notarytool submit FluidVoice.zip \
      --apple-id "your@email.com" \
      --team-id "TEAMID" \
      --password "app-specific-password" \
      --wait
    
    # Staple ticket
-   xcrun stapler staple AudioWhisper.app
+   xcrun stapler staple FluidVoice.app
    ```
 
 ### Distribution Options
@@ -269,11 +269,11 @@ Notarization is required for distribution outside the Mac App Store:
 
 ### Project Structure
 ```
-AudioWhisper/
+FluidVoice/
 ├── Sources/
-│   └── AudioWhisper/
+│   └── FluidVoice/
 │       ├── main.swift              # Entry point
-│       ├── AudioWhisperApp.swift   # Main app structure
+│       ├── FluidVoiceApp.swift   # Main app structure
 │       ├── Views/                  # SwiftUI views
 │       ├── Services/               # Core services
 │       ├── Models/                 # Data models
@@ -342,4 +342,4 @@ These warnings from Apple's frameworks can be safely ignored:
 
 ## License
 
-By contributing to AudioWhisper, you agree that your contributions will be licensed under the same license as the project.
+By contributing to FluidVoice, you agree that your contributions will be licensed under the same license as the project.

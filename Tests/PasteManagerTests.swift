@@ -1,6 +1,6 @@
 import XCTest
 import AppKit
-@testable import AudioWhisper
+@testable import FluidVoice
 
 @MainActor 
 class PasteManagerTests: XCTestCase {

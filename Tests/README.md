@@ -1,10 +1,10 @@
-# AudioWhisper Test Suite
+# FluidVoice Test Suite
 
-A comprehensive test suite for the AudioWhisper macOS application covering all major components and functionality.
+A comprehensive test suite for the FluidVoice macOS application covering all major components and functionality.
 
 ## Overview
 
-This test suite provides thorough coverage of the AudioWhisper application including:
+This test suite provides thorough coverage of the FluidVoice application including:
 - Audio recording and processing
 - Speech-to-text API integration
 - Settings and preferences management
@@ -185,7 +185,7 @@ override func tearDown() {
 Tests that require API keys use mock keychain service for secure testing:
 ```swift
 let mockKeychain = MockKeychainService()
-mockKeychain.saveQuietly("test-key", service: "AudioWhisper", account: "OpenAI")
+mockKeychain.saveQuietly("test-key", service: "FluidVoice", account: "OpenAI")
 // Test code
 // Cleanup handled automatically by test teardown
 ```

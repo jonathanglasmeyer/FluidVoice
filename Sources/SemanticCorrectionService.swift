@@ -6,7 +6,7 @@ import os.log
 final class SemanticCorrectionService {
     private let mlxService = MLXCorrectionService()
     private let keychainService: KeychainServiceProtocol
-    private let logger = Logger(subsystem: "com.audiowhisper.app", category: "SemanticCorrection")
+    private let logger = Logger(subsystem: "com.fluidvoice.app", category: "SemanticCorrection")
     
     // Chunking configuration for 32k context window
     // 32k tokens ≈ 24k words (0.75 ratio) ≈ 120k chars
@@ -64,7 +64,7 @@ final class SemanticCorrectionService {
 
     // MARK: - Cloud (OpenAI)
     private func correctWithOpenAI(text: String) async -> String {
-        guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "OpenAI") else {
+        guard let apiKey = keychainService.getQuietly(service: "FluidVoice", account: "OpenAI") else {
             return text
         }
         let prompt = readPromptFile(name: "cloud_openai_prompt.txt") ?? "You are a transcription corrector. Fix grammar, casing, punctuation, and obvious mis-hearings that do not change meaning. Remove filler words and transcribed pauses that add no meaning (e.g., 'um', 'uh', 'erm', 'you know', 'like' as filler; '[pause]', '(pause)', ellipses for hesitations). Do not remove meaningful words. Do not summarize or add content. Output only the corrected text."
@@ -104,7 +104,7 @@ final class SemanticCorrectionService {
 
     // MARK: - Cloud (Gemini)
     private func correctWithGemini(text: String) async -> String {
-        guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "Gemini") else {
+        guard let apiKey = keychainService.getQuietly(service: "FluidVoice", account: "Gemini") else {
             return text
         }
         let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
@@ -146,7 +146,7 @@ final class SemanticCorrectionService {
     // MARK: - Prompt file helpers
     private func promptsBaseDir() -> URL? {
         return try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-            .appendingPathComponent("AudioWhisper/prompts", isDirectory: true)
+            .appendingPathComponent("FluidVoice/prompts", isDirectory: true)
     }
 
     private func readPromptFile(name: String) -> String? {

@@ -162,7 +162,7 @@ struct ContentView: View {
             // Check permission status when view appears
             audioRecorder.checkMicrophonePermission()
             
-            // Immediate recording is now handled by the hotkey handler in AudioWhisperApp
+            // Immediate recording is now handled by the hotkey handler in FluidVoiceApp
             
             // Listen for transcription progress updates
             transcriptionProgressObserver = NotificationCenter.default.addObserver(
@@ -220,7 +220,7 @@ struct ContentView: View {
                 } else {
                     // Hide window - use reliable window finding method
                     let recordWindow = NSApp.windows.first { window in
-                        window.title == "AudioWhisper Recording"
+                        window.title == "FluidVoice Recording"
                     }
                     
                     if let window = recordWindow {
@@ -288,7 +288,7 @@ struct ContentView: View {
                     }
                 }
                 
-                // Immediate recording is now handled by the hotkey handler in AudioWhisperApp
+                // Immediate recording is now handled by the hotkey handler in FluidVoiceApp
             }
             
             // Listen for retry transcription requests
@@ -481,7 +481,7 @@ struct ContentView: View {
 
     private func hideRecordingWindow() {
         let recordWindow = NSApp.windows.first { window in
-            window.title == "AudioWhisper Recording"
+            window.title == "FluidVoice Recording"
         }
         if let window = recordWindow {
             window.orderOut(nil)
@@ -530,7 +530,7 @@ struct ContentView: View {
                     }
                 }
             } else {
-                throw NSError(domain: "AudioWhisper", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to activate target application"])
+                throw NSError(domain: "FluidVoice", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to activate target application"])
             }
         }
         
@@ -588,7 +588,7 @@ struct ContentView: View {
         lastAudioURL = nil
         
         // Note: Target app is already stored by WindowController.storePreviousApp() when window is shown
-        // We don't need to store it again here since AudioWhisper may already be frontmost
+        // We don't need to store it again here since FluidVoice may already be frontmost
         
         let success = audioRecorder.startRecording()
         if !success {
@@ -719,7 +719,7 @@ struct ContentView: View {
             // Auto-dismiss after 2 seconds when SmartPaste is disabled
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 let recordWindow = NSApp.windows.first { window in
-                    window.title == "AudioWhisper Recording"
+                    window.title == "FluidVoice Recording"
                 }
                 
                 if let window = recordWindow {

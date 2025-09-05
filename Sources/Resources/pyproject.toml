@@ -1,7 +1,7 @@
 [project]
 name = "audio-whisper-runtime"
 version = "0.0.0"
-description = "Runtime dependencies for AudioWhisper"
+description = "Runtime dependencies for FluidVoice"
 requires-python = ">=3.11,<3.12"
 dependencies = [
   # MLX correction

@@ -34,7 +34,7 @@ struct MLXCorrectionResponse: Codable {
 }
 
 final class MLXCorrectionService {
-    private let logger = Logger(subsystem: "com.audiowhisper.app", category: "MLXCorrectionService")
+    private let logger = Logger(subsystem: "com.fluidvoice.app", category: "MLXCorrectionService")
     
     // Cache for mlx-lm availability - no expiration for menu bar app
     // Cache is only invalidated when:
@@ -121,7 +121,7 @@ final class MLXCorrectionService {
                 process.executableURL = URL(fileURLWithPath: pythonPath)
                 // Optional: pass prompt file path for advanced customization
                 let promptsDir = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                    .appendingPathComponent("AudioWhisper/prompts", isDirectory: true)
+                    .appendingPathComponent("FluidVoice/prompts", isDirectory: true)
                 let promptPath = promptsDir?.appendingPathComponent("local_mlx_prompt.txt").path
                 var args = [tempScriptURL.path, modelRepo, inputURL.path]
                 if let p = promptPath { args.append(p) }

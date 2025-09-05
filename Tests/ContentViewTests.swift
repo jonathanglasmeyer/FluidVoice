@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import AudioWhisper
+@testable import FluidVoice
 
 // MARK: - Thread-Safe Atomic Wrapper
 

@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import SwiftData
 
-/// Manages window display and focus restoration for AudioWhisper
+/// Manages window display and focus restoration for FluidVoice
 /// 
 /// This class handles showing/hiding the recording window and restoring focus
 /// to the previous application. All window operations now support optional
@@ -13,7 +13,7 @@ class WindowController {
     private let isTestEnvironment: Bool
     
     // Thread-safe static property to share target app with ContentView
-    private static let storedTargetAppQueue = DispatchQueue(label: "com.audiowhisper.storedTargetApp", attributes: .concurrent)
+    private static let storedTargetAppQueue = DispatchQueue(label: "com.fluidvoice.storedTargetApp", attributes: .concurrent)
     private static var _storedTargetApp: NSRunningApplication?
     
     static var storedTargetApp: NSRunningApplication? {
@@ -49,7 +49,7 @@ class WindowController {
         
         // Use provided window or find the recording window by title
         let recordWindow = window ?? NSApp.windows.first { window in
-            window.title == "AudioWhisper Recording"
+            window.title == "FluidVoice Recording"
         }
         
         if let window = recordWindow {
@@ -176,7 +176,7 @@ class WindowController {
         }
         
         // Hide recording window if open
-        if let recordWindow = NSApp.windows.first(where: { $0.title == "AudioWhisper Recording" }), recordWindow.isVisible {
+        if let recordWindow = NSApp.windows.first(where: { $0.title == "FluidVoice Recording" }), recordWindow.isVisible {
             recordWindow.orderOut(nil)
         }
         
