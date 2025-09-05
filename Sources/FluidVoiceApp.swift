@@ -130,6 +130,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
+        // Session start marker for easy log identification
+        Logger.app.info("")
+        Logger.app.info("")
+        Logger.app.info("================================================================================")
+        Logger.app.info("🚀 FLUIDVOICE SESSION STARTED 🚀")
+        Logger.app.info("================================================================================")
+        Logger.app.info("")
+        Logger.app.info("")
     }
     
     private func setupNotificationObservers() {

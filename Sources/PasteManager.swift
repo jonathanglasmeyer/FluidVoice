@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 import Carbon
+import os.log
 
 // Helper class to safely capture observer in closure
 // Uses a lock to ensure thread-safe access to the mutable observer property
@@ -150,8 +151,8 @@ class PasteManager: ObservableObject {
             return
         }
         
-        // Permission is available - proceed with paste
-        performCGEventPaste(completion: completion)
+        // Permission is available - proceed with Unicode-Typing paste
+        performUnicodeTyping(completion: completion)
     }
     
     // MARK: - CGEvent Paste
@@ -177,17 +178,18 @@ class PasteManager: ObservableObject {
         // Permission is verified - proceed with paste operation
         do {
             try simulateCmdVPaste()
-            // Paste operation completed successfully
+            // CGEvent paste completed successfully
+            Logger.app.info("✅ CGEvent Command+V paste successful")
             handlePasteResult(.success(()))
             completion?(.success(()))
         } catch let error as PasteError {
-            // Handle known paste errors
-            handlePasteResult(.failure(error))
-            completion?(.failure(error))
+            // CGEvent failed - try Unicode-Typing fallback
+            Logger.app.info("⚠️ CGEvent paste failed, attempting Unicode-Typing fallback: \(error.localizedDescription)")
+            performUnicodeTypingFallback(originalError: error, completion: completion)
         } catch {
-            // Handle unexpected errors during paste operation
-            handlePasteResult(.failure(PasteError.keyboardEventCreationFailed))
-            completion?(.failure(PasteError.keyboardEventCreationFailed))
+            // Handle unexpected errors - also try Unicode-Typing fallback
+            Logger.app.info("⚠️ CGEvent paste unexpected error, attempting Unicode-Typing fallback: \(error.localizedDescription)")
+            performUnicodeTypingFallback(originalError: PasteError.keyboardEventCreationFailed, completion: completion)
         }
     }
     
@@ -259,6 +261,129 @@ class PasteManager: ObservableObject {
         handlePasteResult(.failure(PasteError.keyboardEventCreationFailed))
     }
     
+    /// Fallback handler that attempts Unicode-Typing when CGEvent fails
+    /// This provides the hybrid approach: CGEvent first, Unicode-Typing as backup
+    private func performUnicodeTypingFallback(originalError: PasteError, completion: ((Result<Void, PasteError>) -> Void)? = nil) {
+        Logger.app.info("🔄 Starting Unicode-Typing fallback after CGEvent failure")
+        
+        // Try Unicode-Typing fallback
+        performUnicodeTyping { result in
+            switch result {
+            case .success:
+                Logger.app.info("✅ Unicode-Typing fallback successful - hybrid paste completed")
+                // Don't call handlePasteResult again, performUnicodeTyping already did
+            case .failure(let fallbackError):
+                Logger.app.error("❌ Unicode-Typing fallback also failed: \(fallbackError.localizedDescription)")
+                Logger.app.error("❌ Both CGEvent and Unicode-Typing failed - paste operation failed")
+                // Report the original CGEvent error, not the fallback error
+                self.handlePasteResult(.failure(originalError))
+                completion?(.failure(originalError))
+            }
+        }
+    }
+    
+    // MARK: - Unicode-Typing Fallback
+    
+    /// Unicode-Typing fallback strategy for apps that block CGEvent Command+V
+    /// Uses CGEventKeyboardSetUnicodeString to type text character by character
+    /// Works with Chrome, modern browsers, and restrictive applications
+    private func performUnicodeTyping(completion: ((Result<Void, PasteError>) -> Void)? = nil) {
+        // CRITICAL: Prevent any paste operations during tests
+        if NSClassFromString("XCTestCase") != nil {
+            handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
+            completion?(.failure(PasteError.accessibilityPermissionDenied))
+            return
+        }
+        
+        // CRITICAL SECURITY CHECK: Always verify accessibility permission
+        guard accessibilityManager.checkPermission() else {
+            handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
+            completion?(.failure(PasteError.accessibilityPermissionDenied))
+            return
+        }
+        
+        do {
+            try executeUnicodeTyping()
+            // Success - text was typed via Unicode method
+            Logger.app.info("✅ Unicode-Typing paste successful")
+            handlePasteResult(.success(()))
+            completion?(.success(()))
+        } catch let error as PasteError {
+            // Handle known paste errors
+            Logger.app.error("❌ Unicode-Typing failed: \(error.localizedDescription)")
+            handlePasteResult(.failure(error))
+            completion?(.failure(error))
+        } catch {
+            // Handle unexpected errors
+            Logger.app.error("❌ Unicode-Typing unexpected error: \(error.localizedDescription)")
+            handlePasteResult(.failure(PasteError.keyboardEventCreationFailed))
+            completion?(.failure(PasteError.keyboardEventCreationFailed))
+        }
+    }
+    
+    private func executeUnicodeTyping() throws {
+        // Get text from clipboard
+        guard let textToType = NSPasteboard.general.string(forType: .string), !textToType.isEmpty else {
+            Logger.app.info("📋 No text in clipboard for Unicode-Typing")
+            return // Empty clipboard is not an error
+        }
+        
+        Logger.app.info("🔤 Starting Unicode-Typing for \(textToType.count) characters")
+        
+        // Create event source
+        guard let source = CGEventSource(stateID: .combinedSessionState) else {
+            throw PasteError.eventSourceCreationFailed
+        }
+        
+        // Split text into manageable chunks (100 characters)
+        let chunks = textToType.chunked(into: 100)
+        Logger.app.info("📦 Processing \(chunks.count) text chunks")
+        
+        // Process each chunk
+        for (index, chunk) in chunks.enumerated() {
+            try processUnicodeChunk(chunk, chunkIndex: index, source: source)
+            
+            // Small delay between chunks to prevent overwhelming the target app
+            if chunks.count > 1 && index < chunks.count - 1 {
+                usleep(10_000) // 10ms delay between chunks
+            }
+        }
+        
+        Logger.app.info("✅ Unicode-Typing completed successfully")
+    }
+    
+    private func processUnicodeChunk(_ chunk: String, chunkIndex: Int, source: CGEventSource) throws {
+        // Convert string to UTF-16 UniChar array
+        let unicodeChars = chunk.utf16.map { UniChar($0) }
+        
+        // Create Unicode keyboard event
+        guard let unicodeEvent = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true) else {
+            throw PasteError.keyboardEventCreationFailed
+        }
+        
+        // Set the Unicode string for this chunk
+        unicodeEvent.keyboardSetUnicodeString(stringLength: unicodeChars.count, unicodeString: unicodeChars)
+        
+        // Try multiple tap locations for maximum compatibility
+        let tapLocations: [CGEventTapLocation] = [
+            .cghidEventTap,           // Hardware level - most reliable
+            .cgSessionEventTap,       // Session level - fallback
+            .cgAnnotatedSessionEventTap  // Annotated session - last resort
+        ]
+        
+        var posted = false
+        for tapLocation in tapLocations {
+            unicodeEvent.post(tap: tapLocation)
+            posted = true
+            Logger.app.info("📤 Posted Unicode chunk \(chunkIndex + 1)")
+            break // Only use first tap location for now, can add retry logic later
+        }
+        
+        if !posted {
+            throw PasteError.keyboardEventCreationFailed
+        }
+    }
+    
     // MARK: - App Activation Handling
     
     private func waitForApplicationActivation(_ target: NSRunningApplication, completion: @escaping () -> Void) {
@@ -298,4 +423,25 @@ class PasteManager: ObservableObject {
         }
     }
     
+}
+
+// MARK: - String Extensions for Unicode-Typing
+
+extension String {
+    /// Splits the string into chunks of specified size
+    /// Used for processing large text in manageable pieces during Unicode-Typing
+    func chunked(into size: Int) -> [String] {
+        guard size > 0 else { return [self] }
+        
+        var chunks: [String] = []
+        var startIndex = self.startIndex
+        
+        while startIndex < self.endIndex {
+            let endIndex = self.index(startIndex, offsetBy: size, limitedBy: self.endIndex) ?? self.endIndex
+            chunks.append(String(self[startIndex..<endIndex]))
+            startIndex = endIndex
+        }
+        
+        return chunks.isEmpty ? [self] : chunks
+    }
 }
