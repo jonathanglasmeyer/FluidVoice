@@ -4,6 +4,52 @@ This document provides comprehensive technical instructions for developers and A
 
 **Document Purpose**: Complete development guide covering architecture, build system, testing, and deployment.
 
+## ⚠️ CRITICAL: Debug & Log Management
+
+### macOS Console Logging
+**NEVER run FluidVoice in foreground in chat** - it blocks the conversation.
+
+**Correct Debug Workflow:**
+1. **Build and start in background**: 
+   ```bash
+   ./build-dev.sh && FluidVoice-dev.app/Contents/MacOS/FluidVoice &
+   ```
+   Use `run_in_background: true` parameter in Bash tool, NOT `&` ampersand
+2. **Stream logs via terminal**: `/usr/bin/log stream --predicate 'subsystem == "com.fluidvoice.app"' --info` (also background)
+3. **Kill when done**: `pkill -f FluidVoice 2>/dev/null || true`
+
+**⚠️ NEVER use raw executable**: `.build-dev/debug/FluidVoice` bypasses app bundle structure, breaking:
+- Bundle ID detection (no logging subsystem)
+- Resource loading (symlinked Resources/)
+- Code signing validation  
+- macOS app behavior
+
+**NOTE**: Claude Bash tool handles backgrounding differently than terminal - use `run_in_background` parameter.
+
+**⚠️ CRITICAL: Use Full Path for Log Commands**
+The shell built-in `log` command conflicts with macOS Console utility. Always use `/usr/bin/log`:
+
+**Correct log commands:**
+- **Recent logs**: `/usr/bin/log show --last 1m --predicate 'subsystem == "com.fluidvoice.app"'`
+- **Stream logs**: `/usr/bin/log stream --predicate 'subsystem == "com.fluidvoice.app"' --info`
+- **Specific process**: `/usr/bin/log stream --predicate 'process == "FluidVoice"' --info`
+- **Compact format**: `/usr/bin/log show --last 30s --predicate 'subsystem == "com.fluidvoice.app"' --style compact`
+
+**⚠️ CRITICAL: --info Flag Required for Application Logs**
+FluidVoice logs at **Info level**, which is standard for structured application logging:
+- **Without --info**: Only Error/Fault logs shown (empty for normal app operation)
+- **With --info**: Shows Info, Debug, Error, Fault logs (complete app logging)
+- **Development logging**: ALWAYS use `--info` flag to see application startup, DataManager, and operation logs
+
+**Log Level Behavior:**
+- `log stream --predicate 'subsystem == "com.fluidvoice.app"'` → **Empty output** (filters out Info logs)
+- `log stream --predicate 'subsystem == "com.fluidvoice.app"' --info` → **Full application logs**
+- `log stream --predicate 'subsystem == "com.fluidvoice.app"' --style compact` → **Empty output** (compact also filters Info)
+
+**Never use**: `log` (conflicts with shell built-in, causes "too many arguments" errors)
+
+**Never use Console.app** - terminal commands are faster and more precise.
+
 ## ⚠️ CRITICAL: Permission Reset Policy
 
 **NEVER use broad tccutil reset commands without explicit user consent:**
@@ -38,16 +84,20 @@ CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25" ./build.sh
 
 FluidVoice includes optimized build scripts for faster development:
 
-**Development Builds** (Fast iteration):
+**Development Builds** (Hybrid: Fast + Bundle):
 ```bash
 # Load build environment with optimizations
 source .build-config
 
-# Fast development build (23s instead of 60s+)
+# Hybrid development build (5.38s with full app bundle)
 ./build-dev.sh
 # or use alias:
 fv-build
 ```
+
+**Hybrid Build System** - Fast development builds with full app bundle functionality:
+- **5.38s builds** (4.7x faster than release) with complete macOS app behavior
+- See **[docs/features/done/hybrid-build-system.md](docs/features/done/hybrid-build-system.md)** for technical details
 
 **Build Environment Aliases**:
 - `fv-build` - Fast development build
@@ -80,7 +130,23 @@ Build scripts automatically load `.env` if present, enabling:
 - Compiler optimizations for release builds
 - Package.swift with proper build settings
 
-**Performance**: Development builds reduced from 60+ seconds to ~23 seconds.
+**Performance Comparison (Apple Silicon, with build cache):**
+- **build-dev.sh (hybrid)**: 5.38s (5.29s user, 0.69s system, 111% CPU) → Full app bundle
+- **build.sh (release)**: 25.40s (47.61s user, 2.67s system, 197% CPU) → Universal binary + optimizations
+- **Speed improvement**: 4.7x faster development builds with full functionality
+
+**What Makes build-dev.sh Fast:**
+- **Debug compilation** (`-c debug`) - No compiler optimizations
+- **Single architecture** - Native arm64 only (no universal binary)  
+- **Efficient bundling** - Symlinked resources instead of copying
+- **Separate build paths** - `.build-dev` vs `.build` prevents conflicts
+- **Minimal code signing** - Quick signing vs full release signing process
+
+**What Makes build.sh Slower:**
+- **Release optimizations** (`-c release`) - Heavy compiler work
+- **Universal binary** - Compiles for both x86_64 + arm64
+- **Full resource copying** - Complete app bundle assembly
+- **Comprehensive code signing** - Production-ready signing process
 
 ## Complete Development Setup
 
