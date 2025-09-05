@@ -3,17 +3,22 @@
 ## 🚀 High Priority Features
 
 - **[Express Mode: Background Recording](express-mode-background-recording.md)** ⚠️ **IN PROGRESS** - WhisperFlow-like hotkey start/stop, architecture complete but transcription service broken
-- **[Model Preloading & Streaming UX](model-preloading-feature.md)** - Eliminate "Preparing large turbo" 60+ second blocking on first use
 - **[Miniwindow Recording Indicator](miniwindow-recording-indicator.md)** - Small floating window with waveform during recording (WhisperFlow-inspired)
 - **[Fn Key Hotkey Support](fn-key-feature.md)** - Enable Function key combinations for global shortcuts 
 - **[Model Architecture Simplification](model-cleanup-feature.md)** - Remove legacy multi-provider complexity, focus on WhisperKit only
+
+## ✅ Completed Features
+
+- **[Model Preloading & Streaming UX](done/model-preloading-feature.md)** ✅ **DONE** - PreloadManager system eliminates first-use delays
+- **[WhisperKit Preload System](done/whisperkit-preload-system.md)** ✅ **DONE** - App-idle preloading with warmup cycles
 
 ## 📋 Feature Status
 
 | Feature | Priority | Status | Impact |
 |---------|----------|--------|--------|
 | Express Mode | High | ⚠️ **In Progress** | UX Innovation - architecture done, transcription broken |
-| Model Preloading | High | Planned | UX Critical - eliminates worst user experience |
+| Model Preloading | High | ✅ **Completed** | UX Critical - eliminates worst user experience |
+| WhisperKit Preload System | High | ✅ **Completed** | Performance - app-idle preloading with warmup |
 | Miniwindow Indicator | Medium | Not Started | UX Polish - elegant recording feedback |
 | Fn Key Support | High | Planned | Accessibility - more hotkey options |
 | Model Cleanup | High | Planning | Technical Debt - simplify codebase |
