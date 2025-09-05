@@ -50,6 +50,36 @@ FluidVoice logs at **Info level**, which is standard for structured application 
 
 **Never use Console.app** - terminal commands are faster and more precise.
 
+## ⚠️ CRITICAL: Interactive Testing Boundaries
+
+**AI assistants DO NOT perform interactive app validation** - user handles all interactive testing.
+
+**AI Assistant Scope:**
+- ✅ **Code analysis and implementation** - Can read, analyze, and modify code
+- ✅ **Build system validation** - Can run builds and verify compilation
+- ✅ **Static verification** - Can check settings, configurations, and code paths
+- ✅ **Log monitoring** - Can stream and analyze application logs
+- ✅ **Implementation status** - Can verify features are coded and integrated
+
+**User Responsibility:**
+- 🎯 **Interactive testing** - User validates hotkeys, UI interactions, end-to-end workflows
+- 🎯 **Visual verification** - User confirms UI appearance and behavior
+- 🎯 **Audio/speech testing** - User validates microphone input and transcription
+- 🎯 **Permission dialogs** - User handles macOS permission prompts and accessibility setup
+- 🎯 **Real-world validation** - User tests actual speech-to-text and text insertion
+
+**AI assistants should:**
+- Prepare the environment (build, launch, configure)
+- Set up logging and monitoring
+- Verify implementation completeness
+- Hand off to user for interactive validation
+
+**AI assistants should NOT:**
+- Attempt to simulate user interactions (hotkey presses, speech input)
+- Try to validate UI appearance or user experience
+- Test actual microphone input or speech recognition
+- Validate accessibility permissions or system dialogs
+
 ## ⚠️ CRITICAL: Permission Reset Policy
 
 **NEVER use broad tccutil reset commands without explicit user consent:**
@@ -411,6 +441,81 @@ FluidVoice.app/
 - **Memory Usage**: ~50MB baseline, ~200MB during transcription
 
 ---
+
+## 📋 Development Session Status Reports
+
+### Purpose & Context Preservation
+
+Development sessions are tracked via comprehensive status reports stored in `docs/reports/` to maintain context across development sessions when the context window becomes full. These reports serve as detailed checkpoints for AI assistants to restore complete understanding of:
+
+- **Technical progress**: What was implemented, tested, and debugged
+- **Architecture decisions**: Why specific approaches were chosen 
+- **Current blockers**: Exactly what issues remain and debugging evidence
+- **Next priorities**: Clear actionable steps for continuing work
+
+### Status Report Guidelines
+
+**When to Write Status Reports:**
+1. **End of major debugging session** - Capture resolution details and lessons learned
+2. **Before context window fills** - Preserve critical state before conversation reset  
+3. **After significant architecture changes** - Document design decisions and implementation details
+4. **When hitting complex blockers** - Detailed analysis to avoid re-investigation
+
+**Required Sections:**
+```markdown
+# FluidVoice Development Status - Session [N]
+
+**Date:** YYYY-MM-DD
+**Session:** [Brief descriptive title]
+
+## 🎯 Main Accomplishment: [Key Achievement]
+### ✅ Successfully Implemented
+### 🚨 Current Issue: [Primary Blocker]
+### 📁 File Changes This Session  
+### 🎯 Next Session Priorities
+### 🏆 Impact Assessment
+```
+
+**Content Requirements:**
+- **Exhaustive Technical Details**: Include specific error messages, log excerpts, and debugging steps
+- **Code Changes**: List all modified files with key changes explained
+- **Architecture Context**: Explain design decisions and why alternatives were rejected
+- **Debugging Evidence**: Include command outputs, test results, and verification steps
+- **Clear Next Steps**: Specific, actionable priorities with estimated effort
+
+**Auto-Increment System:**
+When creating new status reports, use the next available session number:
+```bash
+# Auto-determine next session number
+NEXT_SESSION=$(ls docs/reports/*session-*.md | grep -o 'session-[0-9]*' | sed 's/session-//' | sort -n | tail -1)
+NEXT_SESSION=$((NEXT_SESSION + 1))
+# Create new report with format:
+docs/reports/YYYY-MM-DD-session-$(printf "%02d" $NEXT_SESSION)-[descriptive-title].md
+```
+
+**Historical Context:**
+- **Session 01**: SmartPaste Unicode-Typing implementation and app startup debugging
+- **Session 02**: Unicode-Typing system with app targeting improvements  
+- **Session 03**: Complete background-only mode architecture implementation
+- **Session 04**: Bundle ID fixes, comprehensive rebranding, hotkey resolution
+- **Session 05**: Logger system debugging and Bundle ID issue resolution
+
+### Writing Status Reports
+
+**Context Restoration Focus:**
+Write as if the next AI assistant has **zero context** about the project. Include:
+- **System state**: What's currently working vs broken
+- **Dependencies**: Required tools, models, API keys, permissions
+- **Debug workflow**: Exact commands to reproduce current state
+- **Technical stack**: Frameworks, libraries, and integration points
+- **User workflow**: How the application is supposed to work end-to-end
+
+**Quality Checklist:**
+- [ ] Can another AI assistant understand the current state without additional context?
+- [ ] Are all error messages and debugging steps documented?
+- [ ] Are the next steps specific and actionable?
+- [ ] Is the impact and risk assessment realistic?
+- [ ] Are all file changes and technical decisions explained?
 
 ---
 
