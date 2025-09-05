@@ -57,8 +57,8 @@ class PasteManager: ObservableObject {
         let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
         
         if enableSmartPaste {
-            // Use CGEvent to simulate ⌘V
-            performCGEventPaste()
+            // Use Unicode-Typing instead of CGEvent ⌘V
+            performUnicodeTyping()
         } else {
             // Just copy to clipboard - user will manually paste
             // Text is already in clipboard from transcription
@@ -151,8 +151,8 @@ class PasteManager: ObservableObject {
             return
         }
         
-        // Permission is available - proceed with Unicode-Typing paste
-        performUnicodeTyping(completion: completion)
+        // Permission is available - proceed with paste
+        performCGEventPaste(completion: completion)
     }
     
     // MARK: - CGEvent Paste
@@ -179,16 +179,16 @@ class PasteManager: ObservableObject {
         do {
             try simulateCmdVPaste()
             // CGEvent paste completed successfully
-            Logger.app.info("✅ CGEvent Command+V paste successful")
+            Logger.app.infoDev("✅ CGEvent Command+V paste successful")
             handlePasteResult(.success(()))
             completion?(.success(()))
         } catch let error as PasteError {
             // CGEvent failed - try Unicode-Typing fallback
-            Logger.app.info("⚠️ CGEvent paste failed, attempting Unicode-Typing fallback: \(error.localizedDescription)")
+            Logger.app.infoDev("⚠️ CGEvent paste failed, attempting Unicode-Typing fallback: \(error.localizedDescription)")
             performUnicodeTypingFallback(originalError: error, completion: completion)
         } catch {
             // Handle unexpected errors - also try Unicode-Typing fallback
-            Logger.app.info("⚠️ CGEvent paste unexpected error, attempting Unicode-Typing fallback: \(error.localizedDescription)")
+            Logger.app.infoDev("⚠️ CGEvent paste unexpected error, attempting Unicode-Typing fallback: \(error.localizedDescription)")
             performUnicodeTypingFallback(originalError: PasteError.keyboardEventCreationFailed, completion: completion)
         }
     }
@@ -264,13 +264,13 @@ class PasteManager: ObservableObject {
     /// Fallback handler that attempts Unicode-Typing when CGEvent fails
     /// This provides the hybrid approach: CGEvent first, Unicode-Typing as backup
     private func performUnicodeTypingFallback(originalError: PasteError, completion: ((Result<Void, PasteError>) -> Void)? = nil) {
-        Logger.app.info("🔄 Starting Unicode-Typing fallback after CGEvent failure")
+        Logger.app.infoDev("🔄 Starting Unicode-Typing fallback after CGEvent failure")
         
         // Try Unicode-Typing fallback
         performUnicodeTyping { result in
             switch result {
             case .success:
-                Logger.app.info("✅ Unicode-Typing fallback successful - hybrid paste completed")
+                Logger.app.infoDev("✅ Unicode-Typing fallback successful - hybrid paste completed")
                 // Don't call handlePasteResult again, performUnicodeTyping already did
             case .failure(let fallbackError):
                 Logger.app.error("❌ Unicode-Typing fallback also failed: \(fallbackError.localizedDescription)")
@@ -305,7 +305,7 @@ class PasteManager: ObservableObject {
         do {
             try executeUnicodeTyping()
             // Success - text was typed via Unicode method
-            Logger.app.info("✅ Unicode-Typing paste successful")
+            Logger.app.infoDev("✅ Unicode-Typing paste successful")
             handlePasteResult(.success(()))
             completion?(.success(()))
         } catch let error as PasteError {
@@ -324,11 +324,18 @@ class PasteManager: ObservableObject {
     private func executeUnicodeTyping() throws {
         // Get text from clipboard
         guard let textToType = NSPasteboard.general.string(forType: .string), !textToType.isEmpty else {
-            Logger.app.info("📋 No text in clipboard for Unicode-Typing")
+            Logger.app.infoDev("📋 No text in clipboard for Unicode-Typing")
             return // Empty clipboard is not an error
         }
         
-        Logger.app.info("🔤 Starting Unicode-Typing for \(textToType.count) characters")
+        Logger.app.infoDev("🔤 Starting Unicode-Typing for \(textToType.count) characters")
+        
+        // Simple approach: just type to whatever app is currently active
+        if let frontmostApp = NSWorkspace.shared.frontmostApplication {
+            Logger.app.infoDev("🎯 Typing to currently active app: \(frontmostApp.localizedName ?? "Unknown") (PID: \(frontmostApp.processIdentifier))")
+        } else {
+            Logger.app.warning("⚠️ No active app found - proceeding anyway")
+        }
         
         // Create event source
         guard let source = CGEventSource(stateID: .combinedSessionState) else {
@@ -337,7 +344,7 @@ class PasteManager: ObservableObject {
         
         // Split text into manageable chunks (100 characters)
         let chunks = textToType.chunked(into: 100)
-        Logger.app.info("📦 Processing \(chunks.count) text chunks")
+        Logger.app.infoDev("📦 Processing \(chunks.count) text chunks")
         
         // Process each chunk
         for (index, chunk) in chunks.enumerated() {
@@ -349,7 +356,7 @@ class PasteManager: ObservableObject {
             }
         }
         
-        Logger.app.info("✅ Unicode-Typing completed successfully")
+        Logger.app.infoDev("✅ Unicode-Typing completed successfully")
     }
     
     private func processUnicodeChunk(_ chunk: String, chunkIndex: Int, source: CGEventSource) throws {
@@ -375,7 +382,7 @@ class PasteManager: ObservableObject {
         for tapLocation in tapLocations {
             unicodeEvent.post(tap: tapLocation)
             posted = true
-            Logger.app.info("📤 Posted Unicode chunk \(chunkIndex + 1)")
+            Logger.app.infoDev("📤 Posted Unicode chunk \(chunkIndex + 1)")
             break // Only use first tap location for now, can add retry logic later
         }
         

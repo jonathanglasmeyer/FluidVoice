@@ -128,7 +128,7 @@ final class DataManager: DataManagerProtocol {
                 configurations: [modelConfiguration]
             )
             
-            Logger.dataManager.info("DataManager initialized successfully")
+            Logger.dataManager.infoDev("DataManager initialized successfully")
             
             // Perform initial cleanup of expired records
             Task {
@@ -156,7 +156,7 @@ final class DataManager: DataManagerProtocol {
             context.insert(record)
             try context.save()
             
-            Logger.dataManager.info("Saved transcription record with ID: \(record.id)")
+            Logger.dataManager.infoDev("Saved transcription record with ID: \(record.id)")
             
             // Perform cleanup after save to maintain retention policy
             await cleanupExpiredRecordsQuietly()
@@ -259,7 +259,7 @@ final class DataManager: DataManagerProtocol {
             context.delete(recordToDelete)
             try context.save()
             
-            Logger.dataManager.info("Deleted transcription record with ID: \(record.id)")
+            Logger.dataManager.infoDev("Deleted transcription record with ID: \(record.id)")
             
         } catch {
             Logger.dataManager.error("Failed to delete transcription record: \(error.localizedDescription)")
@@ -283,7 +283,7 @@ final class DataManager: DataManagerProtocol {
             
             try context.save()
             
-            Logger.dataManager.info("Deleted all \(records.count) transcription records")
+            Logger.dataManager.infoDev("Deleted all \(records.count) transcription records")
             
         } catch {
             Logger.dataManager.error("Failed to delete all transcription records: \(error.localizedDescription)")
@@ -320,7 +320,7 @@ final class DataManager: DataManagerProtocol {
             try context.save()
             
             if !expiredRecords.isEmpty {
-                Logger.dataManager.info("Cleaned up \(expiredRecords.count) expired transcription records")
+                Logger.dataManager.infoDev("Cleaned up \(expiredRecords.count) expired transcription records")
             }
             
         } catch {
@@ -367,7 +367,7 @@ final class MockDataManager: DataManagerProtocol {
     var sharedModelContainer: ModelContainer? = nil
     
     func initialize() throws {
-        Logger.dataManager.info("Mock DataManager initialized")
+        Logger.dataManager.infoDev("Mock DataManager initialized")
     }
     
     func saveTranscription(_ record: TranscriptionRecord) async throws {
@@ -375,7 +375,7 @@ final class MockDataManager: DataManagerProtocol {
         
         records.append(record)
         
-        Logger.dataManager.info("Mock saved transcription record with ID: \(record.id)")
+        Logger.dataManager.infoDev("Mock saved transcription record with ID: \(record.id)")
     }
     
     func fetchAllRecords() async throws -> [TranscriptionRecord] {
@@ -407,13 +407,13 @@ final class MockDataManager: DataManagerProtocol {
     func deleteRecord(_ record: TranscriptionRecord) async throws {
         records.removeAll { $0.id == record.id }
         
-        Logger.dataManager.info("Mock deleted transcription record with ID: \(record.id)")
+        Logger.dataManager.infoDev("Mock deleted transcription record with ID: \(record.id)")
     }
     
     func deleteAllRecords() async throws {
         let count = records.count
         records.removeAll()
-        Logger.dataManager.info("Mock deleted all \(count) transcription records")
+        Logger.dataManager.infoDev("Mock deleted all \(count) transcription records")
     }
     
     func cleanupExpiredRecords() async throws {
@@ -425,7 +425,7 @@ final class MockDataManager: DataManagerProtocol {
         let removedCount = initialCount - records.count
         
         if removedCount > 0 {
-            Logger.dataManager.info("Mock cleaned up \(removedCount) expired transcription records")
+            Logger.dataManager.infoDev("Mock cleaned up \(removedCount) expired transcription records")
         }
     }
     
