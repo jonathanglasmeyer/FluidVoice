@@ -63,21 +63,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // SmartPasteTestWindow removed for debugging
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        print("🚀 FluidVoice starting up...") // STARTUP DEBUG
+        print("🔍 Bundle ID: \(Bundle.main.bundleIdentifier ?? "nil")") // DEBUG BUNDLE ID
+        Logger.app.infoDev("🚀 FluidVoice starting up...")
+        Logger.app.infoDev("📋 Session Marker: =================================")
+        
         // Skip UI initialization in test environment
         let isTestEnvironment = NSClassFromString("XCTestCase") != nil
         if isTestEnvironment {
-            Logger.app.info("Test environment detected - skipping UI initialization")
+            print("❌ Test environment detected - skipping UI initialization") // STARTUP DEBUG
+            Logger.app.infoDev("Test environment detected - skipping UI initialization")
             return
         }
+        
+        print("🖥️ UI initialization started") // STARTUP DEBUG  
+        Logger.app.infoDev("🖥️ UI initialization started")
         
         // Initialize DataManager first
         do {
             try DataManager.shared.initialize()
-            Logger.app.info("DataManager initialized successfully")
+            Logger.app.infoDev("DataManager initialized successfully")
         } catch {
-            Logger.app.error("Failed to initialize DataManager: \(error.localizedDescription)")
+            Logger.app.errorDev("Failed to initialize DataManager: \(error.localizedDescription)")
             // App continues with in-memory fallback
         }
+        
+        // Start background model preloading for instant transcription
+        PreloadManager.shared.startIdlePreload()
         
         // Setup app configuration
         AppSetupHelper.setupApp()
@@ -107,9 +119,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu
         
         // Set up global hotkey and keyboard monitoring
+        print("🔥 Setting up HotKeyManager...") // HOTKEY DEBUG
         hotKeyManager = HotKeyManager { [weak self] in
             self?.handleHotkey()
         }
+        print("✅ HotKeyManager initialized") // HOTKEY DEBUG
         keyboardEventHandler = KeyboardEventHandler()
         
         // Listen for screen configuration changes
@@ -131,13 +145,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Session start marker for easy log identification
-        Logger.app.info("")
-        Logger.app.info("")
-        Logger.app.info("================================================================================")
-        Logger.app.info("🚀 FLUIDVOICE SESSION STARTED 🚀")
-        Logger.app.info("================================================================================")
-        Logger.app.info("")
-        Logger.app.info("")
+        Logger.app.infoDev("")
+        Logger.app.infoDev("")
+        Logger.app.infoDev("================================================================================")
+        Logger.app.infoDev("🚀 FLUIDVOICE SESSION STARTED 🚀")
+        Logger.app.infoDev("================================================================================")
+        Logger.app.infoDev("")
+        Logger.app.infoDev("")
     }
     
     private func setupNotificationObservers() {
@@ -175,45 +189,58 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleHotkey() {
+        print("🎹 Hotkey pressed! Starting handleHotkey()") // Direct stderr output
+        Logger.app.infoDev("🎹 Hotkey pressed! Starting handleHotkey()")
         let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
+        print("⚙️ immediateRecording = \(immediateRecording)") // Direct stderr output
+        Logger.app.infoDev("⚙️ immediateRecording = \(immediateRecording)")
         
         if immediateRecording {
             // Mode 2: Hotkey Start & Stop
             guard let recorder = audioRecorder else {
-                Logger.app.error("AudioRecorder not available for immediate recording")
+                Logger.app.errorDev("❌ AudioRecorder not available for immediate recording")
                 // Fallback to showing window if recorder not available
                 toggleRecordWindow()
                 return
             }
             
+            Logger.app.infoDev("✅ AudioRecorder is available: \(recorder)")
+            
             if recorder.isRecording {
-                // Stop recording and process - show window for processing UI
+                // Stop recording and process in background - no window needed!
                 updateMenuBarIcon(isRecording: false)
-                // Only show window if it's not already visible
-                if recordingWindow == nil || !recordingWindow!.isVisible {
-                    toggleRecordWindow()
-                }
                 
-                // Tiny delay to ensure onAppear runs first
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
+                // Stop recording and get the audio file
+                if let audioURL = recorder.stopRecording() {
+                    Logger.app.infoDev("🔄 Starting background transcription...")
+                    
+                    // Trigger background transcription
+                    startBackgroundTranscription(audioURL: audioURL)
+                } else {
+                    Logger.app.errorDev("❌ Failed to stop recording - no audio URL")
                 }
             } else {
+                Logger.app.infoDev("🎙️ Attempting to start recording...")
+                
                 // Check permission first
                 if !recorder.hasPermission {
-                    // Show window for permission UI
+                    Logger.app.errorDev("❌ No microphone permission - showing window for permission UI")
                     toggleRecordWindow()
                     return
                 }
                 
+                Logger.app.infoDev("✅ Microphone permission granted")
+                
                 // Try to start recording
                 if recorder.startRecording() {
+                    Logger.app.infoDev("✅ Recording started successfully!")
                     // Success - recording started in background
                     updateMenuBarIcon(isRecording: true)
 
                     // Play recording start sound if enabled
                     SoundManager().playRecordingStartSound()
                 } else {
+                    Logger.app.errorDev("❌ Recording failed to start - showing window with error")
                     // Failed - show window with error
                     toggleRecordWindow()
                     // Notify ContentView to show error
@@ -306,7 +333,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func createRecordingWindow() {
         // Ensure audioRecorder is available
         guard let recorder = audioRecorder else {
-            Logger.app.error("Cannot create recording window: AudioRecorder not initialized")
+            Logger.app.errorDev("Cannot create recording window: AudioRecorder not initialized")
             return
         }
         
@@ -359,7 +386,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Clean up references
         recordingWindow = nil
         recordingWindowDelegate = nil
-        Logger.app.info("Recording window closed and references cleaned up")
+        Logger.app.infoDev("Recording window closed and references cleaned up")
     }
     
     /// Creates a fallback container if DataManager initialization fails
@@ -393,7 +420,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     
     @MainActor @objc func showHistory() {
-        Logger.app.info("History menu item selected")
+        Logger.app.infoDev("History menu item selected")
         HistoryWindowManager.shared.showHistoryWindow()
     }
     
@@ -444,6 +471,89 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Cleanup is handled by the deinitializers of the helper classes
         AppSetupHelper.cleanupOldTemporaryFiles()
+    }
+    
+    // MARK: - Background Transcription
+    
+    /// Handles transcription in background without showing any windows
+    /// This is the core of the background-only recording mode
+    private func startBackgroundTranscription(audioURL: URL) {
+        Task {
+            do {
+                // 🧪 TEST MODE: Use pre-recorded audio file for silent testing
+                let testAudioPath = "/Users/jonathan.glasmeyer/Downloads/127389__acclivity__thetimehascome.wav"
+                let testAudioURL = URL(fileURLWithPath: testAudioPath)
+                let finalAudioURL = FileManager.default.fileExists(atPath: testAudioPath) ? testAudioURL : audioURL
+                
+                Logger.app.infoDev("🎤 Starting transcription for audio file: \(finalAudioURL.lastPathComponent)")
+                if finalAudioURL != audioURL {
+                    Logger.app.infoDev("🧪 Using test audio file for silent testing")
+                    Logger.app.infoDev("🧪 DEBUG: Test file path is \(testAudioPath)")
+                }
+                
+                // Get user's transcription settings (same logic as ContentView)
+                let transcriptionProviderString = UserDefaults.standard.string(forKey: "transcriptionProvider") ?? "local"
+                let selectedModelString = UserDefaults.standard.string(forKey: "selectedWhisperModel") ?? "large-v3-turbo"
+                
+                guard let transcriptionProvider = TranscriptionProvider(rawValue: transcriptionProviderString) else {
+                    Logger.app.errorDev("❌ Invalid transcription provider: \(transcriptionProviderString)")
+                    return
+                }
+                
+                Logger.app.infoDev("🔧 Using transcription provider: \(transcriptionProvider.displayName)")
+                
+                // Create services directly for background transcription
+                let speechToTextService = SpeechToTextService()
+                
+                // Use same transcription logic as ContentView
+                let transcribedText: String
+                if transcriptionProvider == .local {
+                    guard let selectedWhisperModel = WhisperModel(rawValue: selectedModelString) else {
+                        Logger.app.errorDev("❌ Invalid whisper model: \(selectedModelString)")
+                        return
+                    }
+                    Logger.app.infoDev("🤖 Using WhisperKit model: \(selectedWhisperModel.displayName)")
+                    transcribedText = try await speechToTextService.transcribe(audioURL: finalAudioURL, provider: transcriptionProvider, model: selectedWhisperModel)
+                } else {
+                    transcribedText = try await speechToTextService.transcribe(audioURL: finalAudioURL, provider: transcriptionProvider)
+                }
+                
+                Logger.app.infoDev("✅ Transcription completed: \(transcribedText.prefix(50))...")
+                Logger.app.infoDev("🧪 DEBUG: Full transcription is [\(transcribedText)]")
+                
+                // Copy to clipboard
+                await MainActor.run {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(transcribedText, forType: .string)
+                }
+                
+                // Auto-paste if SmartPaste is enabled
+                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                if enableSmartPaste {
+                    Logger.app.infoDev("🔄 Auto-pasting transcribed text...")
+                    await MainActor.run {
+                        let pasteManager = PasteManager()
+                        pasteManager.pasteToActiveApp()
+                    }
+                } else {
+                    Logger.app.infoDev("📋 Text copied to clipboard")
+                }
+                
+                // TODO: Save to history later
+                Logger.app.infoDev("📊 Transcription saved to clipboard")
+                
+                Logger.app.infoDev("🎉 Background transcription completed successfully")
+                
+            } catch {
+                Logger.app.errorDev("❌ Background transcription failed: \(error.localizedDescription)")
+                
+                // Even on error, show some feedback to user via menu bar or notification
+                await MainActor.run {
+                    // Could show a brief notification here if needed
+                }
+            }
+        }
     }
     
 }

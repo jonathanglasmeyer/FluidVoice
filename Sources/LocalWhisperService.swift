@@ -1,6 +1,9 @@
 import Foundation
 @preconcurrency import WhisperKit
 import AVFoundation
+import CoreML
+import os.log
+import os.signpost
 
 // Actor to manage WhisperKit instances safely across concurrency boundaries
 private actor WhisperKitCache {
@@ -28,17 +31,31 @@ private actor WhisperKitCache {
         setenv("TRANSFORMERS_OFFLINE", "1", 1)
         setenv("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1", 1)
 
-        // Try to use local model path if available
+        // Try to use local model path if available with optimized config
         let newInstance: WhisperKit
         do {
+            // Create ModelComputeOptions for CPU+GPU (avoid Neural Engine delays)
+            let computeOptions = ModelComputeOptions(
+                melCompute: .cpuAndGPU,
+                audioEncoderCompute: .cpuAndGPU, // Use CPU+GPU instead of default
+                textDecoderCompute: .cpuAndGPU,  // Avoid Neural Engine delays
+                prefillCompute: .cpuOnly
+            )
+            
+            let config: WhisperKitConfig
             if let localModelPath = getLocalModelPath(for: model) {
-                let config = WhisperKitConfig(modelFolder: localModelPath)
-                newInstance = try await WhisperKit(config)
+                config = WhisperKitConfig(
+                    modelFolder: localModelPath,
+                    computeOptions: computeOptions
+                )
             } else {
-                // Fallback to model name (should work if environment variables are respected)
-                let config = WhisperKitConfig(model: modelName)
-                newInstance = try await WhisperKit(config)
+                // Fallback to model name with same optimizations
+                config = WhisperKitConfig(
+                    model: modelName,
+                    computeOptions: computeOptions
+                )
             }
+            newInstance = try await WhisperKit(config)
         } catch {
             // If WhisperKit fails due to network issues, provide a more helpful error
             if error.localizedDescription.contains("offline") ||
@@ -220,6 +237,39 @@ final class LocalWhisperService: Sendable {
     func preloadModel(_ model: WhisperModel, progressCallback: (@Sendable (String) -> Void)? = nil) async throws {
         let modelName = model.whisperKitModelName
         _ = try await cache.getOrCreate(modelName: modelName, model: model, maxCached: maxCachedModels, progressCallback: progressCallback)
+    }
+    
+    /// Performs warmup inference to trigger Metal/CoreML shader compilation
+    func warmupModel(_ model: WhisperModel) async throws {
+        let signpostID = OSSignpostID(log: OSLog(subsystem: "com.fluidvoice.app", category: "performance"))
+        
+        // Create 1s silence sample for warmup (proper length for full pipeline trigger)
+        let silenceDuration: Double = 1.0 // 1 second
+        let sampleRate: Double = 16000 // WhisperKit standard sample rate
+        let sampleCount = Int(silenceDuration * sampleRate)
+        let silenceBuffer = [Float](repeating: 0.0, count: sampleCount)
+        
+        // Write silence to temporary audio file
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("warmup_silence_\(UUID().uuidString).wav")
+        
+        try AudioFileHelper.writePCMToWAV(samples: silenceBuffer, sampleRate: sampleRate, to: tempURL)
+        
+        defer {
+            // Cleanup temp file
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+        
+        os_signpost(.begin, log: OSLog(subsystem: "com.fluidvoice.app", category: "performance"), name: "Warmup Inference", signpostID: signpostID)
+        
+        // Perform actual warmup transcription (triggers Metal/CoreML compilation)
+        let modelName = model.whisperKitModelName
+        let whisperKit = try await cache.getOrCreate(modelName: modelName, model: model, maxCached: maxCachedModels, progressCallback: nil)
+        
+        // Execute warmup inference - result is discarded
+        let _ = try await whisperKit.transcribe(audioPath: tempURL.path)
+        
+        os_signpost(.end, log: OSLog(subsystem: "com.fluidvoice.app", category: "performance"), name: "Warmup Inference", signpostID: signpostID)
     }
     
     // Provide helpful duration hints based on model speed
