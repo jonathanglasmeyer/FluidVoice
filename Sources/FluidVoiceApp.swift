@@ -6,7 +6,7 @@ import ServiceManagement
 import os.log
 
 @main
-struct AudioWhisperApp: App {
+struct FluidVoiceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
@@ -60,6 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingWindowDelegate: RecordingWindowDelegate?
     private var audioRecorder: AudioRecorder?
     private var recordingAnimationTimer: DispatchSourceTimer?
+    // SmartPasteTestWindow removed for debugging
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Skip UI initialization in test environment
@@ -128,6 +129,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.showWelcomeAndSettings()
             }
         }
+        
     }
     
     private func setupNotificationObservers() {
@@ -258,7 +260,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var isRedState = true // Start as red since we just set red image
         
         // Create DispatchSourceTimer on background queue for efficiency
-        let queue = DispatchQueue(label: "com.audiowhisper.animation", qos: .background)
+        let queue = DispatchQueue(label: "com.fluidvoice.animation", qos: .background)
         let timer = DispatchSource.makeTimerSource(queue: queue)
         
         // Schedule timer to start immediately and repeat every 0.5 seconds
@@ -309,7 +311,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         
         // Configure window properties
-        window.title = "AudioWhisper Recording"
+        window.title = "FluidVoice Recording"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
