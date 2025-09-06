@@ -1,4 +1,8 @@
-# FluidVoice 🎙️
+# FluidVoice
+
+<p align="center">
+  <img src="FluidVoiceIcon.png" width="200" height="200" alt="FluidVoice Icon">
+</p>
 
 ![Work in Progress](https://img.shields.io/badge/Status-Work%20in%20Progress-orange?style=flat-square)
 ![Swift](https://img.shields.io/badge/Swift-5.9+-red?style=flat-square&logo=swift)
@@ -9,10 +13,6 @@
 > ⚠️ **Heavy development in progress** - Features and APIs may change frequently.
 
 macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording, press again to stop. Text appears directly in your current application.
-
-<p align="center">
-  <img src="FluidVoiceIcon.png" width="128" height="128" alt="FluidVoice Icon">
-</p>
 
 ## Features
 
