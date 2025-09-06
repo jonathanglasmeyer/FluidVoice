@@ -1,150 +1,102 @@
 # FluidVoice 🎙️
 
-A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Nvidia Parakeet. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
+![Work in Progress](https://img.shields.io/badge/Status-Work%20in%20Progress-orange?style=flat-square)
+![Swift](https://img.shields.io/badge/Swift-5.9+-red?style=flat-square&logo=swift)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+![CoreML](https://img.shields.io/badge/CoreML-✓-blue?style=flat-square)
+![MLX](https://img.shields.io/badge/MLX-✓-purple?style=flat-square)
+
+> ⚠️ **Heavy development in progress** - Features and APIs may change frequently.
+
+macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording, press again to stop. Text appears directly in your current application.
 
 <p align="center">
-  <img src="https://github.com/mazdak/FluidVoice/blob/master/FluidVoiceIcon.png" width="128" height="128" alt="FluidVoice Icon">
+  <img src="AudioWhisperIcon.png" width="128" height="128" alt="FluidVoice Icon">
 </p>
 
-## Features ✨
+## Features
 
-- **🎯 Quick Access**: Global hotkey (⌘⇧Space) to start recording from anywhere
-- **🎙️ Menu Bar App**: Lives quietly in your menu bar, no dock icon
-- **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, Local WhisperKit with CoreML, or Parakeet-MLX
-- **📋 Smart Paste**: Transcribed text is automatically copied and can be pasted
-- **🔈 Visual and Sound Feedback**: Real-time audio level indicator while recording, chime when finished transcription
-- **⌨️ Keyboard Shortcuts**: Space to start/stop recording, ESC to cancel
-- **💬 User Guidance**: Clear on-screen instructions for all actions
-- **🌓 Dark Mode**: Beautiful native macOS design that adapts to your system
-- **🔐 Secure**: API keys stored in macOS Keychain
-- **🔒 Privacy-First**: Local transcription option keeps audio on your device
-- **⚡ Lightweight**: Minimal resource usage, starts with your Mac
+### Local Transcription
+- **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB)
+- **Parakeet v3**: 25 European languages, daemon mode, auto-detection
+
+### Technical Features
+- Model preloading eliminates startup delays
+- Daemon architecture for fast response times
+
+## Legacy Features (Will Be Removed)
+- **Window-based recording**: Recording window interface (disable "Express Mode" in settings)
+- **Manual copy/paste workflow**: Use background mode instead
+- **Cloud APIs**: OpenAI Whisper, Google Gemini (use local transcription instead)
 
 ## Requirements 📋
-
-- macOS 14.0 (Sonoma) or later  
-- OpenAI API key, Google Gemini API key, Local Whisper (no API key required), or Parakeet with Python
+- macOS 14.0 (Sonoma) or later
 - Swift 5.9+ (for building from source)
 
 ## Installation 🛠️
-
 ### Option 1: Download Pre-built App
-1. Download the latest release from [Releases](https://github.com/mazdak/FluidVoice/releases)
-2. Drag FluidVoice.app to your Applications folder
-3. Launch and configure your API key through the settings
+TBD
 
 ### Option 2: Build from Source
-```bash
-# Clone the repository
-git clone https://github.com/mazdak/FluidVoice.git
-cd FluidVoice
-
-# Build the app
-./build.sh
-
-# Copy to Applications
-cp -r FluidVoice.app /Applications/
-```
-
-## Setup 🔧
-
-### Transcription Options
-
-**Local WhisperKit (Privacy-First)**
-- No API key required
-- Audio never leaves your device
-- CoreML hardware acceleration with Neural Engine support
-- Choose from 6 different model sizes (39MB to 2.9GB)
-- Models download automatically on first use
-
-**Local Parakeet (VERY Fast, English only, Privacy-First)**
-- No API key required
-- Audio never leaves your device
-- MLX hardware acceleration
-- ADVANCED: Make sure you have a Python installation on your machine: [Parakeet MLX Instructions](https://github.com/senstella/parakeet-mlx).
-- Pick Parakeet (Advanced) and enter the full path to your Python binary
-
-**OpenAI (Recommended for Cloud)**
-1. Visit https://platform.openai.com/api-keys
-2. Create a new API key
-3. Copy the key starting with `sk-`
-
-**Google Gemini**
-1. Visit https://makersuite.google.com/app/apikey
-2. Create a new API key
-3. Copy the key starting with `AIza`
-
-**Parakeet (Advanced)**
-- Local transcription using MLX framework for Apple Silicon optimization
-- Requires Python with parakeet-mlx installed
-- First use downloads ~600MB model from Hugging Face
-- Setup instructions:
-  ```bash
-  
-  # Install parakeet-mlx 
-  uv add parakeet-mlx -U
-  # or
-  pip install parakeet-mlx
-  ```
-- Configure Python path in settings (usually `/usr/bin/python3`)
-
-### First Run
-
-1. Launch FluidVoice from Applications
-2. The app will detect no API keys and show a welcome dialog
-3. Click OK to open Settings
-4. Choose your preferred provider:
-   - **Local WhisperKit**: Select model size (downloads automatically, no API key needed)
-   - **OpenAI or Gemini**: Paste your API key and click "Save"
-   - **Advanced: Parakeet 🦜**: You need a working Python 3 installation with `parakeet-mlx` installed.
-
-5. Toggle "Start at Login" if you want the app to launch automatically
-
-## Usage 🎯
-
-1. **Quick Recording**: Press ⌘⇧Space anywhere to open the recording window
-2. **Start Recording**: Click the blue microphone button or press Space
-3. **Stop Recording**: Click the button again or press Space
-4. **Cancel**: Press ESC at any time to dismiss the window
-5. **Auto-Paste**: After transcription, text is automatically copied and pasted to the previous app
-
-The app lives in your menu bar - click the microphone icon for quick access to recording or settings.
-
-### On-Screen Instructions
-The recording window shows helpful instructions at the bottom:
-- **Ready**: "Press Space to record • Escape to close"
-- **Recording**: "Press Space to stop • Escape to cancel"
-- **Processing**: "Processing audio..."
-- **Success**: "Text copied to clipboard"
-
-## Building from Source 👨‍💻
-
-For complete development setup, build instructions, testing guidelines, and technical documentation, see **[CLAUDE.md](CLAUDE.md)** - our comprehensive developer guide.
-
-**Quick start for developers:**
 ```bash
 git clone https://github.com/mazdak/FluidVoice.git
 cd FluidVoice
 source .build-config && fv-build
+cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 ```
+
+## Setup 🔧
+
+### Local Transcription (Recommended)
+
+**WhisperKit**
+- No API key required
+- Audio stays on your device
+- CoreML hardware acceleration with Neural Engine
+- 6 model sizes available (39MB to 2.9GB)
+- Models download automatically on first use
+
+**Parakeet v3**
+- No API key required
+- 25 European languages with automatic detection
+- MLX framework optimized for Apple Silicon
+- Daemon mode for fast response times
+- ~600MB model downloads on setup
+- Setup via "Download Parakeet v3 Model" in settings
+
+### Legacy Cloud APIs
+- OpenAI Whisper and Google Gemini are still available but will be removed
+- Requires API keys and sends audio to external servers
+- Use local transcription for better privacy and performance
+
+## Usage 🎯
+
+1. Press ⌘⇧Space to start recording (background, no window)
+2. Press ⌘⇧Space again to stop and transcribe
+3. Text appears directly in current application
+
+The app lives in your menu bar - click the microphone icon for settings.
+
+### Legacy Window Mode
+If you disable "Express Mode" in settings, FluidVoice will use the old window-based interface. This mode will be removed in future versions.
+
+
 
 ## Privacy & Security 🔒
 
-- **Local Transcription**: Choose Local WhisperKit to keep audio completely on your device
-- **Third Party Processing**: OpenAI/Google options transmit audio for transcription
-- **Keychain Storage**: API keys are securely stored in macOS Keychain
-- **No Tracking**: We don't collect any usage data or analytics
+- **Local Processing**: Audio stays on your device with WhisperKit and Parakeet
+- **No Network Requests**: All transcription happens locally
+- **No Tracking**: No usage data or analytics collected
 - **Microphone Permission**: You'll be prompted once on first use
-- **Open Source**: Audit the code yourself for peace of mind
+- **Open Source**: Full source code available for auditing
 
 ## Keyboard Shortcuts ⌨️
 
 | Action | Shortcut |
 |--------|----------|
-| Toggle Recording Window | ⌘⇧Space |
-| Start/Stop Recording | Space |
-| Cancel/Close Window | ESC |
-| Open Settings | Click menu bar → Settings |
+| Start Recording | ⌘⇧Space |
+| Stop Recording & Transcribe | ⌘⇧Space |
+| Open Settings | Click menu bar icon |
 
 ## Troubleshooting 🔧
 
@@ -156,55 +108,20 @@ source .build-config && fv-build
 - Go to System Settings → Privacy & Security → Microphone
 - Ensure FluidVoice is enabled
 
-**API Key Issues**
-- Verify your API key is correct in Settings
-- Check your API quota/credits
-- Try switching between OpenAI and Gemini
-
-**Recording Window Issues**
-- The window floats above all apps
-- Click outside or press ESC to dismiss
-- Use ⌘⇧Space to toggle visibility
-
 **Parakeet Setup Issues**
-- Ensure Python and parakeet-mlx are installed: `python3 -c "import parakeet_mlx; print('OK')"`
-- Use "Test" button in settings to validate setup
-- Check Python path is correct (usually `/usr/bin/python3`)
-- For custom Python installations, specify full path to python executable
+- Click "Download Parakeet v3 Model" in settings
+- Check that download completed (~600MB)
+- Use "Test" button to validate setup
 
-## Contributing 🤝
+## Contributing
 
-Contributions are welcome! For detailed development guidelines, architecture overview, testing procedures, and code style requirements, see **[CLAUDE.md](CLAUDE.md)**.
+Contributions welcome! See [CLAUDE.md](CLAUDE.md) for development setup and guidelines.
 
-**Quick contribution workflow:**
-1. Fork the repository
-2. See [CLAUDE.md](CLAUDE.md) for complete setup and development guide
-3. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-4. Follow the testing and code style guidelines in CLAUDE.md
-5. Submit a Pull Request
+## Acknowledgments
 
-## License 📄
+Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper).
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Open Source 📦
-
-FluidVoice is built with open source libraries including Alamofire, HotKey, and WhisperKit. See [CLAUDE.md](CLAUDE.md) for complete technical stack details.
-
-## Acknowledgments 🙏
-
-- Built with SwiftUI and AppKit
-- Uses OpenAI Whisper API for cloud transcription
-- Supports Google Gemini as an alternative
-- Local transcription powered by WhisperKit with CoreML acceleration
-- Parakeet-MLX library for providing an easy accelerated Python interface
-
----
-
-## Development Documentation 🔧
-
-- **[README.md](README.md)** (this file) - User installation, setup, and usage guide
-- **[CLAUDE.md](CLAUDE.md)** - Complete technical documentation for developers and AI assistants
+Built with SwiftUI, AppKit, WhisperKit, Parakeet-MLX, Alamofire, HotKey, KeychainAccess. MIT License.
 
 ---
 
