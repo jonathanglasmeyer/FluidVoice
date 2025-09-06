@@ -70,6 +70,26 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     cp "Info.plist" "$APP_BUNDLE/Contents/"
   fi
   
+  # Ensure UV binary is available for Python package management
+  UV_BIN_PATH="Sources/Resources/bin/uv"
+  if [ ! -f "$UV_BIN_PATH" ]; then
+    echo "📦 Downloading UV binary for Python package management..."
+    mkdir -p "Sources/Resources/bin"
+    
+    # Detect architecture for the correct UV binary
+    ARCH=$(uname -m)
+    if [ "$ARCH" = "arm64" ]; then
+      UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz"
+    else
+      UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-apple-darwin.tar.gz"
+    fi
+    
+    # Download and extract UV binary
+    curl -L "$UV_URL" | tar -xz -C "Sources/Resources/bin" --strip-components=1
+    chmod +x "$UV_BIN_PATH"
+    echo "✅ UV binary downloaded and ready"
+  fi
+  
   # Copy resources efficiently with symlinks
   if [ -d "Sources/Resources" ]; then
     # Remove the placeholder Resources directory

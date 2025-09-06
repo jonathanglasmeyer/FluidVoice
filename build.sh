@@ -147,20 +147,31 @@ else
   echo "⚠️ mlx_semantic_correct.py not found, MLX semantic correction will not work"
 fi
 
-# Bundle uv (Apple Silicon). Prefer repo copy; else fall back to system uv if available
+# Bundle uv (Apple Silicon). Download if needed, prefer repo copy, else fall back to system uv
 if [ -f "Sources/Resources/bin/uv" ]; then
   cp Sources/Resources/bin/uv FluidVoice.app/Contents/Resources/bin/uv
   chmod +x FluidVoice.app/Contents/Resources/bin/uv
   echo "Bundled uv binary (from repo)"
 else
-  if command -v uv >/dev/null 2>&1; then
-    UV_PATH=$(command -v uv)
-    cp "$UV_PATH" FluidVoice.app/Contents/Resources/bin/uv
-    chmod +x FluidVoice.app/Contents/Resources/bin/uv
-    echo "Bundled uv binary (from system: $UV_PATH)"
+  echo "📦 Downloading UV binary for Python package management..."
+  mkdir -p "Sources/Resources/bin"
+  
+  # Detect architecture for the correct UV binary
+  ARCH=$(uname -m)
+  if [ "$ARCH" = "arm64" ]; then
+    UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz"
   else
-    echo "ℹ️ No bundled uv found and no system uv available; runtime will try PATH"
+    UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-apple-darwin.tar.gz"
   fi
+  
+  # Download and extract UV binary
+  curl -L "$UV_URL" | tar -xz -C "Sources/Resources/bin" --strip-components=1
+  chmod +x "Sources/Resources/bin/uv"
+  
+  # Now copy to app bundle
+  cp Sources/Resources/bin/uv FluidVoice.app/Contents/Resources/bin/uv
+  chmod +x FluidVoice.app/Contents/Resources/bin/uv
+  echo "✅ UV binary downloaded and bundled"
 fi
 
 # Bundle pyproject.toml and uv.lock if present
