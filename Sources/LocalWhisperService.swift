@@ -212,9 +212,22 @@ final class LocalWhisperService: Sendable {
         let durationHint = getDurationHint(for: model)
         progressCallback?("Transcribing audio... \(durationHint)")
         
-        // Transcribe the audio file
+        // Transcribe the audio file with proper language detection
         progressCallback?("Processing audio...")
-        let results = try await whisperKit.transcribe(audioPath: audioFileURL.path)
+        
+        // Create DecodingOptions with forced German language
+        var decodingOptions = DecodingOptions()
+        decodingOptions.language = "de"       // Force German (ISO 639-1 code)
+        decodingOptions.detectLanguage = false // Disable auto-detection
+        decodingOptions.verbose = true        // Enable for debugging
+        decodingOptions.task = .transcribe
+        decodingOptions.skipSpecialTokens = true
+        decodingOptions.suppressBlank = true  // Helps with quality
+        
+        let results = try await whisperKit.transcribe(
+            audioPath: audioFileURL.path, 
+            decodeOptions: decodingOptions
+        )
         
         // Combine all transcription segments into a single text
         let transcription = results.map { $0.text }.joined(separator: " ")
@@ -267,7 +280,19 @@ final class LocalWhisperService: Sendable {
         let whisperKit = try await cache.getOrCreate(modelName: modelName, model: model, maxCached: maxCachedModels, progressCallback: nil)
         
         // Execute warmup inference - result is discarded
-        let _ = try await whisperKit.transcribe(audioPath: tempURL.path)
+        // Use same DecodingOptions as main transcription
+        var warmupOptions = DecodingOptions()
+        warmupOptions.language = "de"       // Force German (ISO 639-1 code)
+        warmupOptions.detectLanguage = false // Disable auto-detection
+        warmupOptions.verbose = false       // Keep quiet for warmup
+        warmupOptions.task = .transcribe
+        warmupOptions.skipSpecialTokens = true
+        warmupOptions.suppressBlank = true  // Consistent with main transcription
+        
+        let _ = try await whisperKit.transcribe(
+            audioPath: tempURL.path,
+            decodeOptions: warmupOptions
+        )
         
         os_signpost(.end, log: OSLog(subsystem: "com.fluidvoice.app", category: "performance"), name: "Warmup Inference", signpostID: signpostID)
     }
