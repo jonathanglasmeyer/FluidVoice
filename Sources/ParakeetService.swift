@@ -39,12 +39,13 @@ struct ParakeetResponse: Codable {
 class ParakeetService {
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "ParakeetService")
     
+    /// Cached flag set at app startup - avoids expensive model checks during transcription
+    static var isModelAvailable: Bool = false
+    
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
 
-        // Check if Parakeet model is available, but don't auto-download
-        // User must explicitly download via Settings first
-        await MLXModelManager.shared.refreshModelList()
-        if !(await MLXModelManager.shared.downloadedModels).contains(MLXModelManager.parakeetRepo) {
+        // Ultra-fast check: use cached flag set at app startup
+        guard Self.isModelAvailable else {
             throw ParakeetError.dependencyMissing("Parakeet v3 model", installCommand: "Download via Settings → Parakeet")
         }
 

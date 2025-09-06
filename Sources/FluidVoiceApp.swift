@@ -91,6 +91,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start background model preloading for instant transcription
         PreloadManager.shared.startIdlePreload()
         
+        // Initialize MLX model cache at startup (async, non-blocking)
+        Task {
+            await MLXModelManager.shared.refreshModelList()
+            
+            // Set cached flags for instant transcription checks
+            let downloadedModels = await MLXModelManager.shared.downloadedModels
+            ParakeetService.isModelAvailable = downloadedModels.contains(MLXModelManager.parakeetRepo)
+            
+            Logger.app.infoDev("MLX model cache initialized at startup - Parakeet available: \(ParakeetService.isModelAvailable)")
+        }
+        
         // Setup app configuration
         AppSetupHelper.setupApp()
         
@@ -473,6 +484,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         AppSetupHelper.cleanupOldTemporaryFiles()
     }
     
+    // MARK: - Debug Configuration
+    
+    /// Returns debug audio URL if debug mode is enabled and file exists
+    private func getDebugAudioURL() -> URL? {
+        // Check if debug mode is enabled via UserDefaults
+        let debugEnabled = UserDefaults.standard.bool(forKey: "enableDebugAudioMode")
+        guard debugEnabled else { return nil }
+        
+        // Get debug audio path from UserDefaults, fall back to hardcoded path
+        let debugAudioPath = UserDefaults.standard.string(forKey: "debugAudioFilePath") 
+            ?? "/Users/jonathan.glasmeyer/Downloads/12770092-94b0-4c06-bf19-07346d0e6c6b.wav"
+        
+        let debugURL = URL(fileURLWithPath: debugAudioPath)
+        
+        // Only use debug audio if file actually exists
+        guard FileManager.default.fileExists(atPath: debugAudioPath) else {
+            Logger.app.infoDev("🧪 DEBUG: Debug audio file not found at \(debugAudioPath)")
+            return nil
+        }
+        
+        return debugURL
+    }
+    
     // MARK: - Background Transcription
     
     /// Handles transcription in background without showing any windows
@@ -480,15 +514,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startBackgroundTranscription(audioURL: URL) {
         Task {
             do {
-                // 🧪 TEST MODE: Use pre-recorded audio file for silent testing
-                let testAudioPath = "/Users/jonathan.glasmeyer/Downloads/12770092-94b0-4c06-bf19-07346d0e6c6b.wav"
-                let testAudioURL = URL(fileURLWithPath: testAudioPath)
-                let finalAudioURL = FileManager.default.fileExists(atPath: testAudioPath) ? testAudioURL : audioURL
+                // 🧪 TEST MODE: Use debug audio file if enabled
+                let finalAudioURL = getDebugAudioURL() ?? audioURL
                 
                 Logger.app.infoDev("🎤 Starting transcription for audio file: \(finalAudioURL.lastPathComponent)")
                 if finalAudioURL != audioURL {
-                    Logger.app.infoDev("🧪 Using test audio file for silent testing")
-                    Logger.app.infoDev("🧪 DEBUG: Test file path is \(testAudioPath)")
+                    Logger.app.infoDev("🧪 DEBUG: Using test audio file for silent testing")
+                    Logger.app.infoDev("🧪 DEBUG: Test file path is \(finalAudioURL.path)")
                 }
                 
                 // Get user's transcription settings (same logic as ContentView)

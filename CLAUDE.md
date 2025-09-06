@@ -105,6 +105,44 @@ extension Logger {
 - **Keep `.info()`** for: High-level success/failure events, feature usage milestones, error recovery notifications, system integration status
 - **FluidVoice context**: Mass replacement acceptable due to personal-use nature, rich UI error handling, and privacy-first approach
 
+### Debug Audio Mode
+
+**Purpose**: Test transcription pipeline with pre-recorded audio instead of live microphone input, enabling silent debugging and consistent test results.
+
+**Runtime Configuration** (no rebuild required):
+```bash
+# Enable debug audio mode
+defaults write com.fluidvoice.app enableDebugAudioMode -bool true
+
+# Disable debug audio mode  
+defaults write com.fluidvoice.app enableDebugAudioMode -bool false
+
+# Optional: Set custom debug audio file
+defaults write com.fluidvoice.app debugAudioFilePath "/path/to/your/test.wav"
+
+# Check current settings
+defaults read com.fluidvoice.app enableDebugAudioMode
+defaults read com.fluidvoice.app debugAudioFilePath
+```
+
+**How it works**:
+- **Live Configuration**: Settings read from UserDefaults at runtime, no app restart needed
+- **Automatic Fallback**: Uses normal microphone recording if debug file doesn't exist
+- **Clear Logging**: Shows `🧪 DEBUG: Using test audio file` when active
+- **Default File**: Falls back to hardcoded test file if no custom path set
+
+**Usage Workflow**:
+1. Set debug mode: `defaults write com.fluidvoice.app enableDebugAudioMode -bool true`
+2. Trigger transcription: ⌘⇧Space (uses test audio instead of microphone)
+3. Monitor logs: `/usr/bin/log stream --predicate 'subsystem == "com.fluidvoice.app"' --info`
+4. Disable when done: `defaults write com.fluidvoice.app enableDebugAudioMode -bool false`
+
+**Benefits**:
+- **Silent Testing**: Debug transcription without speaking or microphone access
+- **Consistent Results**: Same audio input for reproducible testing
+- **Performance Analysis**: Test different providers/models with identical audio
+- **Development Efficiency**: Quick iteration without audio recording delays
+
 ## ⚠️ CRITICAL: Interactive Testing Boundaries
 
 **AI assistants DO NOT perform interactive app validation** - user handles all interactive testing.
