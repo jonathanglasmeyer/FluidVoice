@@ -11,6 +11,8 @@
 - Nie `.build-dev/debug/FluidVoice` verwenden (Bundle-Struktur!)
 - Immer `/usr/bin/log` (nicht `log`) mit `--info` Flag
 - Debug Audio: `defaults write com.fluidvoice.app enableDebugAudioMode -bool true`
+- **ALWAYS use `.infoDev()` not `.info()`** - Logger.app.infoDev(), Logger.audioInspector.infoDev()
+- Privacy Logs: Device names show as `<private>` - use `sudo log stream` for real names
 
 ## AI Testing Grenzen
 
@@ -54,12 +56,27 @@
 **Mocks:** External dependencies isolieren  
 **Tests:** Edge cases, error paths, concurrency
 
+## Feature & Bug Documentation
+
+**Features:** Always check `docs/features/README.md` for current status  
+**Completed:** Listed in `docs/features/done/` directory  
+**Bugs:** Document in `docs/bugs/` (if exists) or search codebase for TODO/FIXME  
+**AI Rule:** Never guess features/bugs - always read documentation first
+
 ## Status Reports
 
 **When:** End of major sessions, before context window fills, complex blockers  
 **Location:** `docs/reports/YYYY-MM-DD-session-NN-[title].md`  
 **Format:** Date, Session title, Main accomplishment, Current issue, File changes, Next priorities  
 **Focus:** Write for zero-context AI - include system state, dependencies, debug workflow
+
+## Audio Files
+
+**Location:** `FileManager.default.temporaryDirectory` (system temp)  
+**Pattern:** `recording_[timestamp].m4a` (Sources/AudioRecorder.swift:78)  
+**Example Path:** `/var/folders/bk/_pv4zm0s3mjc4wmcgv3vw5y00000gp/T/`  
+**Find Command:** `find /var/folders -name "recording_*.m4a" -type f 2>/dev/null`  
+**Access:** App has "Show Audio File" button for transcription errors (Sources/ContentView.swift:830)
 
 ## Quick Commands
 
