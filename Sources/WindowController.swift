@@ -33,100 +33,6 @@ class WindowController {
         isTestEnvironment = NSClassFromString("XCTestCase") != nil
     }
     
-    func toggleRecordWindow(_ window: NSWindow? = nil, completion: (() -> Void)? = nil) {
-        // Don't show recorder window during first-run welcome experience
-        let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
-        if !hasCompletedWelcome {
-            completion?()
-            return
-        }
-        
-        // In test environment, exit early
-        if isTestEnvironment {
-            completion?()
-            return
-        }
-        
-        // Use provided window or find the recording window by title
-        let recordWindow = window ?? NSApp.windows.first { window in
-            window.title == "FluidVoice Recording"
-        }
-        
-        if let window = recordWindow {
-            if window.isVisible {
-                hideWindow(window, completion: completion)
-            } else {
-                showWindow(window, completion: completion)
-            }
-        } else {
-            completion?()
-        }
-    }
-    
-    private func hideWindow(_ window: NSWindow, completion: (() -> Void)? = nil) {
-        window.orderOut(nil)
-        restoreFocusToPreviousApp(completion: completion)
-    }
-    
-    private func showWindow(_ window: NSWindow, completion: (() -> Void)? = nil) {
-        // Skip actual window operations in test environment
-        if isTestEnvironment {
-            completion?()
-            return
-        }
-        
-        // Remember the currently active app before showing our window
-        storePreviousApp()
-        
-        // Configure window for proper keyboard handling and space management
-        window.canHide = false
-        window.acceptsMouseMovedEvents = true
-        window.isOpaque = false
-        window.hasShadow = true
-        
-        // Force window to appear in current space by resetting collection behavior
-        window.orderOut(nil)
-        window.collectionBehavior = []
-        
-        // Step 1: Reset and reconfigure window
-        performWindowOperation(after: 0.02) { [weak self] in
-            guard self != nil else {
-                completion?()
-                return
-            }
-            
-            // Reset window level and behavior to force space redetection
-            window.level = .normal
-            
-            // Use more aggressive collection behavior for fullscreen spaces
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary, .fullScreenAuxiliary]
-            
-            // Step 2: Set final level and show window
-            self?.performWindowOperation(after: 0.01) { [weak self] in
-                guard self != nil else {
-                    completion?()
-                    return
-                }
-                
-                // Use higher window level to ensure it appears over fullscreen apps
-                window.level = .modalPanel
-                
-                // Activate app to ensure we're in right space context
-                NSApp.activate(ignoringOtherApps: true)
-                
-                // Show window in current space with maximum priority
-                window.orderFrontRegardless()
-                window.makeKeyAndOrderFront(nil)
-                
-                // Step 3: Ensure proper focus
-                self?.performWindowOperation(after: 0.05) {
-                    window.makeKey()
-                    window.makeFirstResponder(window.contentView)
-                    completion?()
-                }
-            }
-        }
-    }
     
     /// Helper method to perform window operations with delays and completion handlers
     private func performWindowOperation(after delay: TimeInterval, operation: @escaping () -> Void) {
@@ -137,20 +43,6 @@ class WindowController {
         }
     }
     
-    private func storePreviousApp() {
-        let workspace = NSWorkspace.shared
-        if let frontmostApp = workspace.frontmostApplication,
-           frontmostApp.bundleIdentifier != Bundle.main.bundleIdentifier {
-            previousApp = frontmostApp
-            WindowController.storedTargetApp = frontmostApp
-            
-            // Also notify via NotificationCenter as backup
-            NotificationCenter.default.post(
-                name: .targetAppStored,
-                object: frontmostApp
-            )
-        }
-    }
     
     func restoreFocusToPreviousApp(completion: (() -> Void)? = nil) {
         guard let prevApp = previousApp else {
@@ -175,10 +67,7 @@ class WindowController {
             return
         }
         
-        // Hide recording window if open
-        if let recordWindow = NSApp.windows.first(where: { $0.title == "FluidVoice Recording" }), recordWindow.isVisible {
-            recordWindow.orderOut(nil)
-        }
+        // No recording window to hide anymore
         
         // Check if settings window already exists
         if let existingWindow = settingsWindow, existingWindow.isVisible {

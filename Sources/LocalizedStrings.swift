@@ -117,10 +117,6 @@ enum LocalizedStrings {
     
     // MARK: - Menu Items
     enum Menu {
-        static let record = NSLocalizedString("menu.record", 
-            value: "Record", 
-            comment: "Menu item to start recording")
-        
         static let settings = NSLocalizedString("menu.settings", 
             value: "Settings...", 
             comment: "Menu item to open settings")

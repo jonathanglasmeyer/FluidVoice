@@ -56,8 +56,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyManager: HotKeyManager?
     private var keyboardEventHandler: KeyboardEventHandler?
     private var windowController = WindowController()
-    private weak var recordingWindow: NSWindow?
-    private var recordingWindowDelegate: RecordingWindowDelegate?
     private var audioRecorder: AudioRecorder?
     private var recordingAnimationTimer: DispatchSourceTimer?
     // SmartPasteTestWindow removed for debugging
@@ -125,14 +123,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         if let button = statusItem?.button {
             button.image = AppSetupHelper.createMenuBarIcon()
-            button.action = #selector(toggleRecordWindow)
-            button.target = self
+            // No button action needed - menu bar app only
         }
         
         // Create menu
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.record, action: #selector(toggleRecordWindow), keyEquivalent: ""))
-        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
@@ -175,6 +170,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.app.infoDev("================================================================================")
         Logger.app.infoDev("")
         Logger.app.infoDev("")
+        
+        // Debug: Log audio device configuration
+        AudioDeviceInspector.logSystemAudioDevices()
     }
     
     private func setupNotificationObservers() {
@@ -222,8 +220,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Mode 2: Hotkey Start & Stop
             guard let recorder = audioRecorder else {
                 Logger.app.errorDev("❌ AudioRecorder not available for immediate recording")
-                // Fallback to showing window if recorder not available
-                toggleRecordWindow()
                 return
             }
             
@@ -247,8 +243,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 // Check permission first
                 if !recorder.hasPermission {
-                    Logger.app.errorDev("❌ No microphone permission - showing window for permission UI")
-                    toggleRecordWindow()
+                    Logger.app.errorDev("❌ No microphone permission - background recording not possible")
                     return
                 }
                 
@@ -263,19 +258,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     // Play recording start sound if enabled
                     SoundManager().playRecordingStartSound()
                 } else {
-                    Logger.app.errorDev("❌ Recording failed to start - showing window with error")
-                    // Failed - show window with error
-                    toggleRecordWindow()
-                    // Notify ContentView to show error
-                    NotificationCenter.default.post(
-                        name: .recordingStartFailed,
-                        object: nil
-                    )
+                    Logger.app.errorDev("❌ Recording failed to start")
                 }
             }
         } else {
-            // Mode 1: Manual Start & Stop (original behavior)
-            toggleRecordWindow()
+            // Mode 1 has been removed - only background recording mode is supported
+            Logger.app.errorDev("❌ Manual recording mode not supported - please enable immediate recording in Settings")
         }
     }
     
@@ -345,72 +333,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingAnimationTimer = nil
     }
     
-    @objc func toggleRecordWindow() {
-        // Create recording window on-demand if it doesn't exist
-        if recordingWindow == nil {
-            createRecordingWindow()
-        }
-        windowController.toggleRecordWindow(recordingWindow)
-    }
     
-    private func createRecordingWindow() {
-        // Ensure audioRecorder is available
-        guard let recorder = audioRecorder else {
-            Logger.app.errorDev("Cannot create recording window: AudioRecorder not initialized")
-            return
-        }
-        
-        // Create the recording window programmatically
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 160),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        
-        // Configure window properties
-        window.title = "FluidVoice Recording"
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        window.backgroundColor = .clear
-        window.level = .modalPanel
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary, .fullScreenAuxiliary]
-        window.hasShadow = true
-        window.isOpaque = false
-        
-        // Create ContentView and set it as content
-        let contentView = ContentView(audioRecorder: recorder)
-            .frame(width: 280, height: 160)
-            .fixedSize()
-            .background(VisualEffectView())
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
-        
-        window.contentView = NSHostingView(rootView: contentView)
-        window.center()
-        
-        // Hide standard window buttons
-        window.standardWindowButton(.closeButton)?.isHidden = true
-        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        window.standardWindowButton(.zoomButton)?.isHidden = true
-        
-        // Set up delegate to handle window lifecycle
-        recordingWindowDelegate = RecordingWindowDelegate { [weak self] in
-            self?.onRecordingWindowClosed()
-        }
-        window.delegate = recordingWindowDelegate
-        
-        recordingWindow = window
-    }
     
-    /// Called when the recording window is closing
-    private func onRecordingWindowClosed() {
-        // Clean up references
-        recordingWindow = nil
-        recordingWindowDelegate = nil
-        Logger.app.infoDev("Recording window closed and references cleaned up")
-    }
     
     /// Creates a fallback container if DataManager initialization fails
     private func createFallbackModelContainer() -> ModelContainer {
@@ -487,10 +411,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Clean up resources
         recordingAnimationTimer?.cancel()
         recordingAnimationTimer = nil
-        
-        // Clean up window references
-        recordingWindow = nil
-        recordingWindowDelegate = nil
         
         // Gracefully shutdown Parakeet daemon
         Task {
@@ -617,16 +537,3 @@ struct VisualEffectView: NSViewRepresentable {
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
-/// Window delegate that handles the recording window lifecycle
-private class RecordingWindowDelegate: NSObject, NSWindowDelegate {
-    private let onClose: () -> Void
-    
-    init(onClose: @escaping () -> Void) {
-        self.onClose = onClose
-        super.init()
-    }
-    
-    func windowWillClose(_ notification: Notification) {
-        onClose()
-    }
-}

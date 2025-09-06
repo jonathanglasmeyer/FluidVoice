@@ -14,7 +14,6 @@ final class WindowControllerTests: XCTestCase {
     
     override func tearDown() {
         windowController = nil
-        UserDefaults.standard.removeObject(forKey: "hasCompletedWelcome")
         super.tearDown()
     }
     
@@ -24,52 +23,11 @@ final class WindowControllerTests: XCTestCase {
         XCTAssertNotNil(windowController)
     }
     
-    // MARK: - Welcome Completion Check Tests
-    
-    func testToggleRecordWindowBlockedDuringWelcome() {
-        UserDefaults.standard.set(false, forKey: "hasCompletedWelcome")
-        
-        // Should not show window during welcome
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-        
-        // Just verify no crash occurs
-        XCTAssertTrue(true)
-    }
-    
-    func testToggleRecordWindowAllowedAfterWelcome() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        // Should allow toggling after welcome is completed
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
-    // MARK: - Window Visibility Tests
-    
-    func testToggleRecordWindowWhenNoWindow() {
-        // When no recording window exists, should not crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
-    func testWindowShowingAndHiding() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        // Test that toggling doesn't crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
     // MARK: - Settings Window Tests
     
     @MainActor
     func testOpenSettingsCreatesNewWindow() {
         // Should not crash when opening settings
-        XCTAssertNoThrow(windowController.openSettings())
-    }
-    
-    @MainActor
-    func testOpenSettingsHidesRecordingWindow() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        // In test environment, this just verifies no crash
         XCTAssertNoThrow(windowController.openSettings())
     }
     
@@ -92,44 +50,7 @@ final class WindowControllerTests: XCTestCase {
         XCTAssertNoThrow(windowController.restoreFocusToPreviousApp())
     }
     
-    // MARK: - Window Configuration Tests
-    
-    func testWindowConfiguration() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        // Test window configuration doesn't crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
-    func testWindowLevelConfiguration() {
-        // Test that window operations don't crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
-    func testWindowCollectionBehavior() {
-        // Test that window operations don't crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
-    // MARK: - Async Operations Tests
-    
-    func testAsyncWindowOperations() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        // In test environment, this returns early, just verify no crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
     // MARK: - Edge Cases Tests
-    
-    func testMultipleToggleCalls() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        // Multiple rapid calls should not crash
-        for _ in 0..<10 {
-            XCTAssertNoThrow(windowController.toggleRecordWindow())
-        }
-    }
     
     @MainActor
     func testMultipleSettingsOpenCalls() {
@@ -141,16 +62,10 @@ final class WindowControllerTests: XCTestCase {
     
     @MainActor
     func testConcurrentWindowOperations() async {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
         await withTaskGroup(of: Void.self) { group in
-            for i in 0..<10 {
+            for _ in 0..<10 {
                 group.addTask { @MainActor in
-                    if i % 2 == 0 {
-                        self.windowController.toggleRecordWindow()
-                    } else {
-                        self.windowController.openSettings()
-                    }
+                    self.windowController.openSettings()
                 }
             }
         }
@@ -170,16 +85,6 @@ final class WindowControllerTests: XCTestCase {
     
     // MARK: - Performance Tests
     
-    func testToggleWindowPerformance() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
-        measure {
-            for _ in 0..<100 {
-                windowController.toggleRecordWindow()
-            }
-        }
-    }
-    
     @MainActor
     func testOpenSettingsPerformance() {
         measure {
@@ -194,43 +99,13 @@ final class WindowControllerTests: XCTestCase {
     @MainActor
     func testWindowOperationsWithInvalidWindows() {
         // Test with nil window references
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
         XCTAssertNoThrow(windowController.openSettings())
         XCTAssertNoThrow(windowController.restoreFocusToPreviousApp())
     }
     
     @MainActor
     func testWindowOperationsAfterWindowClosed() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        
         // Operations should not crash
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
         XCTAssertNoThrow(windowController.openSettings())
-    }
-    
-    // MARK: - UserDefaults Integration Tests
-    
-    func testWelcomeStateChanges() {
-        // Test toggling welcome state
-        UserDefaults.standard.set(false, forKey: "hasCompletedWelcome")
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-        
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-        
-        // Reset state
-        UserDefaults.standard.removeObject(forKey: "hasCompletedWelcome")
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
-    }
-    
-    func testDefaultWelcomeState() {
-        // When hasCompletedWelcome is not set, should default to false
-        UserDefaults.standard.removeObject(forKey: "hasCompletedWelcome")
-        
-        let hasCompleted = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
-        XCTAssertFalse(hasCompleted)
-        
-        // Should block window toggle
-        XCTAssertNoThrow(windowController.toggleRecordWindow())
     }
 }
