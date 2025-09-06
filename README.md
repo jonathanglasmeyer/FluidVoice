@@ -11,7 +11,7 @@
 macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording, press again to stop. Text appears directly in your current application.
 
 <p align="center">
-  <img src="AudioWhisperIcon.png" width="128" height="128" alt="FluidVoice Icon">
+  <img src="FluidVoiceIcon.png" width="128" height="128" alt="FluidVoice Icon">
 </p>
 
 ## Features
