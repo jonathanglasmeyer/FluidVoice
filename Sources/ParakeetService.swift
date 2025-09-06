@@ -32,6 +32,8 @@ struct ParakeetResponse: Codable {
     let text: String
     let success: Bool
     let error: String?
+    let language: String?
+    let confidence: Float?
 }
 
 class ParakeetService {
@@ -39,8 +41,12 @@ class ParakeetService {
     
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
 
-        // Step 0: Ensure Parakeet model is downloaded before transcription
-        await MLXModelManager.shared.ensureParakeetModel()
+        // Check if Parakeet model is available, but don't auto-download
+        // User must explicitly download via Settings first
+        await MLXModelManager.shared.refreshModelList()
+        if !(await MLXModelManager.shared.downloadedModels).contains(MLXModelManager.parakeetRepo) {
+            throw ParakeetError.dependencyMissing("Parakeet v3 model", installCommand: "Download via Settings → Parakeet")
+        }
 
         // Step 1: Process audio with Swift AudioProcessor to create raw PCM data
         let pcmDataURL = try await processAudioToRawPCM(audioFileURL: audioFileURL)
@@ -314,6 +320,12 @@ class ParakeetService {
             
             if response.success {
                 logger.info("Parakeet transcription successful")
+                if let language = response.language {
+                    logger.info("Detected language: \(language)")
+                }
+                if let confidence = response.confidence {
+                    logger.info("Detection confidence: \(confidence)")
+                }
                 return response.text
             } else {
                 throw ParakeetError.transcriptionFailed(response.error ?? "Unknown error")

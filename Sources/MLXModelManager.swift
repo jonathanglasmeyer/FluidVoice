@@ -26,7 +26,7 @@ final class MLXModelManager: ObservableObject {
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "MLXModelManager")
     private let cacheDirectory: URL
 
-    static let parakeetRepo = "mlx-community/parakeet-tdt-0.6b-v2"
+    static let parakeetRepo = "mlx-community/parakeet-tdt-0.6b-v3"
     
     // Popular models for semantic correction (real model names from Hugging Face)
     static let recommendedModels = [
@@ -108,16 +108,14 @@ final class MLXModelManager: ObservableObject {
         // Ensure managed Python via uv
         let pythonPath: String
         do {
-            let py = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+            let py = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                 self.logger.info("uv: \(msg)")
             }
             pythonPath = py.path
         } catch {
             logger.error("Failed to prepare Python environment: \(error.localizedDescription)")
-            await MainActor.run {
-                downloadProgress[repo] = "Error: Could not prepare Python environment"
-                isDownloading[repo] = false
-            }
+            downloadProgress[repo] = "Error: Could not prepare Python environment"
+            isDownloading[repo] = false
             return
         }
         logger.info("Using managed Python at: \(pythonPath)")
@@ -301,41 +299,40 @@ except Exception as e:
     func downloadParakeetModel() async {
         let repo = Self.parakeetRepo
         logger.info("Starting Parakeet model download for: \(repo)")
+        
+        // Set download state immediately for UI feedback
+        isDownloading[repo] = true
+        downloadProgress[repo] = "Preparing Python environment..."
 
         let pythonPath: String
         do {
-            let py = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+            let py = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                 self.logger.info("uv: \(msg)")
             }
             pythonPath = py.path
         } catch {
             logger.error("Failed to prepare Python environment: \(error.localizedDescription)")
-            await MainActor.run {
-                downloadProgress[repo] = "Error: Could not prepare Python environment"
-                isDownloading[repo] = false
-            }
+            downloadProgress[repo] = "Error: Could not prepare Python environment"
+            isDownloading[repo] = false
             return
         }
 
-        await MainActor.run {
-            isDownloading[repo] = true
-            downloadProgress[repo] = "Downloading Parakeet model..."
-        }
+        downloadProgress[repo] = "Downloading Parakeet v3 model (~600MB)..."
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: pythonPath)
         let pythonScript = """
 import json, sys, traceback, os
 
-# Set environment to force offline operation
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
-os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+# Allow online downloads to download the model
+os.environ['HF_HUB_OFFLINE'] = '0'
+print("Downloading Parakeet v3 multilingual model...", flush=True)
 
 try:
     from parakeet_mlx import from_pretrained
-    from_pretrained(\"\(repo)\", local_files_only=True)
-    print(json.dumps({"status": "complete", "message": "Model loaded"}), flush=True)
+    print("Starting model download from Hugging Face...", flush=True)
+    model = from_pretrained(\"\(repo)\")
+    print(json.dumps({"status": "complete", "message": "Parakeet v3 multilingual model downloaded successfully"}), flush=True)
 except Exception as e:
     print(json.dumps({"status": "error", "message": str(e)}), flush=True)
     sys.exit(1)
@@ -376,14 +373,10 @@ except Exception as e:
             try process.run()
             process.waitUntilExit()
         } catch {
-            await MainActor.run {
-                self.downloadProgress[repo] = "Error: \(error.localizedDescription)"
-            }
+            self.downloadProgress[repo] = "Error: \(error.localizedDescription)"
         }
 
-        await MainActor.run {
-            self.isDownloading[repo] = false
-        }
+        self.isDownloading[repo] = false
     }
 
     func deleteModel(_ repo: String) async {

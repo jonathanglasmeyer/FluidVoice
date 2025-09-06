@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage("enableSmartPaste") private var enableSmartPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
+    @ObservedObject private var mlxModelManager = MLXModelManager.shared
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
     // Semantic correction settings
@@ -277,6 +278,54 @@ struct SettingsView: View {
                                 runUvSetupSheet(title: "Setting up Parakeet dependencies…")
                                 }
                                 .buttonStyle(.borderedProminent)
+                            }
+                            
+                            // Parakeet Model Download Section
+                            if envReady {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Parakeet v3 Multilingual Model")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    
+                                    if mlxModelManager.downloadedModels.contains(MLXModelManager.parakeetRepo) {
+                                        HStack {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                            Text("Model downloaded (~600 MB)")
+                                                .font(.caption)
+                                        }
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Download required for transcription (~600 MB)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            
+                                            if mlxModelManager.isDownloading[MLXModelManager.parakeetRepo] == true {
+                                                HStack {
+                                                    ProgressView()
+                                                        .controlSize(.small)
+                                                    Text(mlxModelManager.downloadProgress[MLXModelManager.parakeetRepo] ?? "Downloading...")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                            } else {
+                                                Button("Download Parakeet v3 Model") {
+                                                    Task.detached {
+                                                        await mlxModelManager.downloadParakeetModel()
+                                                        await mlxModelManager.refreshModelList()
+                                                    }
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.top, 8)
+                                .onAppear {
+                                    Task {
+                                        await mlxModelManager.refreshModelList()
+                                    }
+                                }
                             }
                         } else {
                             Text("Parakeet is only available on Apple Silicon Macs.")
@@ -610,9 +659,6 @@ struct SettingsView: View {
                 if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
                    let provider = TranscriptionProvider(rawValue: storedProvider) {
                     transcriptionProvider = provider
-                    if provider == .parakeet {
-                        Task { await MLXModelManager.shared.ensureParakeetModel() }
-                    }
                 }
                 // Normalize MLX selection: remove Gemma 2 from choices
                 if semanticCorrectionModelRepo.contains("gemma-2-2b") {
@@ -633,10 +679,7 @@ struct SettingsView: View {
                     // Refresh env status quickly
                     checkEnvReady()
                     if !envReady { showParakeetConfirm = true }
-                    else {
-                        hasSetupParakeet = true
-                        Task { await MLXModelManager.shared.ensureParakeetModel() }
-                    }
+                    else { hasSetupParakeet = true }
                 }
             }
         }
@@ -767,7 +810,7 @@ struct SettingsView: View {
         showSetupSheet = true
         Task {
             do {
-                _ = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                _ = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                     DispatchQueue.main.async {
                         setupLogs += (setupLogs.isEmpty ? "" : "\n") + msg
                     }

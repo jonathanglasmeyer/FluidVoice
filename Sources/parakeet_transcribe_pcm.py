@@ -54,14 +54,14 @@ def main():
     pcm_file_path = sys.argv[1]
 
     try:
-        # Load Parakeet model (should be cached locally after ensureParakeetModel)
+        # Load Parakeet v3 multilingual model (should be cached locally after ensureParakeetModel)
         # Try offline loading first to avoid network timeouts
         try:
-            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2", local_files_only=True)
+            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v3", local_files_only=True)
         except Exception as offline_error:
             print(f"Offline loading failed: {offline_error}", file=sys.stderr)
             print("Falling back to online loading (this may take time)...", file=sys.stderr)
-            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2")
+            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v3")
 
         # Check if PCM file exists
         import os
@@ -83,16 +83,32 @@ def main():
         # Generate transcription from mel spectrogram
         result = model.generate(mel)
 
-        # Extract text from result - handle list of AlignedResult objects
+        # Extract text and language information from result - handle list of AlignedResult objects
+        text = ""
+        detected_language = None
+        confidence = None
+        
         if isinstance(result, list) and len(result) > 0:
             # model.generate() returns a list of AlignedResult objects
-            text = result[0].text if hasattr(result[0], 'text') else str(result[0])
+            result_obj = result[0]
+            text = result_obj.text if hasattr(result_obj, 'text') else str(result_obj)
+            # Try to extract language information if available
+            if hasattr(result_obj, 'language'):
+                detected_language = result_obj.language
+            if hasattr(result_obj, 'confidence'):
+                confidence = result_obj.confidence
         elif hasattr(result, "text"):
             text = result.text
+            if hasattr(result, 'language'):
+                detected_language = result.language  
+            if hasattr(result, 'confidence'):
+                confidence = result.confidence
         elif hasattr(result, "texts") and len(result.texts) > 0:
             text = result.texts[0]
         elif isinstance(result, dict) and "text" in result:
             text = result["text"]
+            detected_language = result.get("language")
+            confidence = result.get("confidence")
         elif isinstance(result, dict) and "texts" in result and len(result["texts"]) > 0:
             text = result["texts"][0]
         else:
@@ -100,13 +116,24 @@ def main():
         
         text = text if text else ""
 
-        # Output as JSON
-        output = {"text": text, "success": True}
+        # Output as JSON with language detection information
+        output = {
+            "text": text, 
+            "success": True,
+            "language": detected_language,
+            "confidence": confidence
+        }
         print(json.dumps(output))
 
     except Exception as e:
-        # Output error as JSON
-        error_output = {"text": "", "success": False, "error": str(e)}
+        # Output error as JSON with consistent structure
+        error_output = {
+            "text": "", 
+            "success": False, 
+            "error": str(e),
+            "language": None,
+            "confidence": None
+        }
         print(json.dumps(error_output))
         sys.exit(1)
 

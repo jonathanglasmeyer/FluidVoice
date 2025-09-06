@@ -80,7 +80,7 @@ struct UvBootstrap {
 
     // Ensure project exists and dependencies are synced with uv. Returns path to project .venv python.
     // If userPython is nil, we let uv provision or use its managed interpreter (via --python 3.x)
-    static func ensureVenv(userPython: String? = nil, log: ((String)->Void)? = nil) throws -> URL {
+    static func ensureVenv(userPython: String? = nil, log: ((String)->Void)? = nil) async throws -> URL {
         let uv = try findUv()
         let proj = try projectDir()
 
@@ -93,14 +93,14 @@ struct UvBootstrap {
         if !fm.fileExists(atPath: venvDir.path) {
             let pythonSpecifier: String = (userPython?.isEmpty == false) ? userPython! : defaultPythonVersion
             log?("Creating project .venv with Python \(pythonSpecifier)…")
-            let (out, err, status) = runInDir(uv.path, ["venv", "--python", pythonSpecifier], cwd: proj)
+            let (out, err, status) = await runInDirAsync(uv.path, ["venv", "--python", pythonSpecifier], cwd: proj)
             if status != 0 { throw UvError.venvCreationFailed(err.isEmpty ? out : err) }
         }
 
         // Run uv sync in project directory. We do not enforce --frozen so that
         // a stale lock can be updated to match the bundled pyproject.toml.
         log?("Syncing project dependencies via uv sync…")
-        let (out, err, status) = runInDir(uv.path, ["sync"], cwd: proj)
+        let (out, err, status) = await runInDirAsync(uv.path, ["sync"], cwd: proj)
         if status != 0 { throw UvError.syncFailed(err.isEmpty ? out : err) }
 
         // Return the project venv python
@@ -189,6 +189,59 @@ struct UvBootstrap {
         let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         return (out, err, p.terminationStatus)
+    }
+
+    @discardableResult
+    private static func runInDirAsync(_ cmd: String, _ args: [String], cwd: URL, timeout: TimeInterval = 120) async -> (String, String, Int32) {
+        return await withCheckedContinuation { continuation in
+            let p = Process()
+            p.currentDirectoryURL = cwd
+            p.executableURL = URL(fileURLWithPath: cmd)
+            p.arguments = args
+            let outPipe = Pipe(); let errPipe = Pipe()
+            p.standardOutput = outPipe; p.standardError = errPipe
+            
+            var continuationResumed = false
+            let continuationQueue = DispatchQueue(label: "com.fluidvoice.uvbootstrap.continuation")
+            
+            // Set up timeout mechanism
+            let timeoutTask = Task {
+                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                continuationQueue.async {
+                    if !continuationResumed {
+                        continuationResumed = true
+                        if p.isRunning {
+                            p.terminate()
+                        }
+                        continuation.resume(returning: ("", "Process timed out after \(timeout) seconds", 124))
+                    }
+                }
+            }
+            
+            p.terminationHandler = { process in
+                timeoutTask.cancel()
+                continuationQueue.async {
+                    if !continuationResumed {
+                        continuationResumed = true
+                        let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                        let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                        continuation.resume(returning: (out, err, process.terminationStatus))
+                    }
+                }
+            }
+            
+            do {
+                try p.run()
+            } catch {
+                timeoutTask.cancel()
+                continuationQueue.async {
+                    if !continuationResumed {
+                        continuationResumed = true
+                        continuation.resume(returning: ("", String(describing: error), 1))
+                    }
+                }
+            }
+        }
     }
 
     private static func copyIfDifferent(src: URL, dst: URL) throws {
