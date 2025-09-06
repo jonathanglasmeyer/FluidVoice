@@ -147,17 +147,7 @@ defaults read com.fluidvoice.app debugAudioFilePath
 
 **Purpose**: High-performance transcription via long-running Python daemon process. Eliminates Python startup and model loading overhead (~250ms per transcription).
 
-**Runtime Configuration** (no rebuild required):
-```bash
-# Enable daemon mode (high performance)
-defaults write com.fluidvoice.app parakeetDaemonMode -bool true
-
-# Disable daemon mode (fallback to regular subprocess)
-defaults write com.fluidvoice.app parakeetDaemonMode -bool false
-
-# Check current setting
-defaults read com.fluidvoice.app parakeetDaemonMode
-```
+**Status**: Always enabled by default for optimal performance (no configuration needed)
 
 **How it works**:
 - **Daemon Mode**: Single Python process with loaded model, responds to JSON requests via stdin/stdout

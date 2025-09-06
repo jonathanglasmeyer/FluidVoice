@@ -101,9 +101,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             Logger.app.infoDev("MLX model cache initialized at startup - Parakeet available: \(ParakeetService.isModelAvailable)")
             
-            // Early daemon initialization for zero cold start (if daemon mode enabled)
-            let daemonModeEnabled = UserDefaults.standard.bool(forKey: "parakeetDaemonMode")
-            if ParakeetService.isModelAvailable && daemonModeEnabled {
+            // Early daemon initialization for zero cold start (always enabled for optimal performance)
+            if ParakeetService.isModelAvailable {
                 do {
                     Logger.app.infoDev("🚀 Starting Parakeet daemon preload...")
                     let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)

@@ -42,9 +42,9 @@ class ParakeetService {
     /// Cached flag set at app startup - avoids expensive model checks during transcription
     static var isModelAvailable: Bool = false
     
-    /// Use high-performance daemon mode when available
+    /// Always use high-performance daemon mode for optimal performance
     private var useDaemonMode: Bool {
-        return UserDefaults.standard.bool(forKey: "parakeetDaemonMode")
+        return true
     }
     
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {

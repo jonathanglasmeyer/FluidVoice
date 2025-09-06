@@ -52,8 +52,8 @@ Comprehensive performance optimization roadmap for Parakeet transcription pipeli
 
 **Configuration**:
 ```bash
-# Enable daemon mode (runtime, no rebuild needed)
-defaults write com.fluidvoice.app parakeetDaemonMode -bool true
+# Daemon mode is now enabled by default for optimal performance
+# No configuration needed - always uses high-performance daemon mode
 ```
 
 ### 3. Early Daemon Initialization (COMPLETED)
@@ -87,7 +87,7 @@ Task {
 - **Zero Cold Start**: First transcription is immediately fast (0.23s vs 0.63s)
 - **Consistent Performance**: All transcriptions benefit from warm daemon
 - **User Experience**: No waiting time on first hotkey press
-- **Intelligent Conditional**: Only preloads when daemon mode is enabled
+- **Always Active**: Daemon mode is now enabled by default for all users
 
 **Trade-offs**:
 - **App Startup**: +500ms startup time for daemon initialization
