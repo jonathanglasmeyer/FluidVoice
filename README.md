@@ -22,10 +22,16 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 - **Enterprise security** - Safe for confidential meetings and sensitive content
 - **Offline-first design** - Works without internet connection
 
+### 🌍 **Intelligent Multilingual Support**
+- **Automatic language detection** - Switch between languages mid-sentence
+- **25+ European languages** with Parakeet v3 (German, French, Spanish, Italian, etc.)
+- **No manual language switching** - Just speak, FluidVoice adapts
+- **WhisperKit multilingual** - Supports 50+ languages with seamless detection
+
 ### ⚡ **Ultra-Fast Performance**  
-- **Parakeet daemon mode**: 0.1-0.3 second transcription times
-- **10x faster** than traditional subprocess approaches
-- **Instant response** - Model preloaded and ready
+- **Sub-second transcription**: 0.1-0.3 second response times
+- **10x faster** than traditional approaches with optimized model loading
+- **Instant response** - Models preloaded and ready
 - **Real-time feel** - Near-zero latency for short audio clips
 
 ## Features
