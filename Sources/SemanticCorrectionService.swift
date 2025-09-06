@@ -47,7 +47,7 @@ final class SemanticCorrectionService {
         guard Arch.isAppleSilicon else { return text }
         let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-3B-Instruct-4bit"
         do {
-            let pyURL = try UvBootstrap.ensureVenv(userPython: nil)
+            let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
             let output = try await mlxService.correct(text: text, modelRepo: modelRepo, pythonPath: pyURL.path)
             let merged = Self.safeMerge(original: text, corrected: output, maxChangeRatio: 0.6)
             if merged == text {
