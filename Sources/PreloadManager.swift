@@ -43,7 +43,7 @@ final class PreloadManager {
             // 2. Preload via existing LocalWhisperService
             try await LocalWhisperService.shared.preloadModel(model) { progress in
                 // Silent preload - no UI progress
-                Logger(subsystem: "com.fluidvoice.app", category: "PreloadManager").info("Preload: \(progress)")
+                Logger(subsystem: "com.fluidvoice.app", category: "PreloadManager").infoDev("Preload: \(progress)")
             }
             
             os_signpost(.event, log: OSLog(subsystem: "com.fluidvoice.app", category: "PreloadManager"), name: "Model Loaded", signpostID: signpostID)
