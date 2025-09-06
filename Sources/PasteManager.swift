@@ -51,33 +51,14 @@ class PasteManager: ObservableObject {
     
     private let accessibilityManager = AccessibilityPermissionManager()
     
-    /// Attempts to paste text to the currently active application
-    /// Uses Unicode-Typing
-    func pasteToActiveApp() {
-        // Use Unicode-Typing
-        performUnicodeTyping()
-    }
-    
     /// Directly types the provided text using Unicode-Typing
     func pasteText(_ text: String) {
-        // Copy text to clipboard first for Unicode-Typing to work
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        
-        // Use Unicode-Typing
-        performUnicodeTyping()
+        performUnicodeTyping(text: text)
     }
     
     /// SmartPaste function that attempts to paste text into a specific application
     /// This is the function mentioned in the test requirements
     func smartPaste(into targetApp: NSRunningApplication?, text: String) {
-        // First copy text to clipboard as fallback - this ensures users always have access to the text
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        
-        
         // CRITICAL: Check accessibility permission without prompting - never bypass this check
         // If this fails, we must NOT attempt to proceed with CGEvent operations
         guard accessibilityManager.checkPermission() else {
@@ -112,15 +93,16 @@ class PasteManager: ObservableObject {
                 return
             }
             
-            self.performCGEventPaste()
+            // Use Unicode-Typing directly with the text
+            self.performUnicodeTyping(text: text)
         }
     }
     
     /// Performs paste with completion handler for proper coordination
     @MainActor
-    func pasteWithCompletionHandler() async {
+    func pasteWithCompletionHandler(text: String) async {
         await withCheckedContinuation { continuation in
-            pasteWithUserInteraction { _ in
+            pasteWithUserInteraction(text: text) { _ in
                 continuation.resume()
             }
         }
@@ -128,7 +110,7 @@ class PasteManager: ObservableObject {
     
     /// Performs paste with immediate user interaction context
     /// This should work better than automatic pasting
-    func pasteWithUserInteraction(completion: ((Result<Void, PasteError>) -> Void)? = nil) {
+    func pasteWithUserInteraction(text: String, completion: ((Result<Void, PasteError>) -> Void)? = nil) {
         // Check permission first - if denied, show proper explanation and request
         guard accessibilityManager.checkPermission() else {
             // Show permission request with explanation - this includes user education
@@ -137,7 +119,7 @@ class PasteManager: ObservableObject {
                 
                 if granted {
                     // Permission was granted - attempt paste operation
-                    self.performCGEventPaste(completion: completion)
+                    self.performUnicodeTyping(text: text, completion: completion)
                 } else {
                     // User declined permission - show appropriate message and fail gracefully
                     self.accessibilityManager.showPermissionDeniedMessage()
@@ -149,92 +131,9 @@ class PasteManager: ObservableObject {
         }
         
         // Permission is available - proceed with paste
-        performCGEventPaste(completion: completion)
+        performUnicodeTyping(text: text, completion: completion)
     }
     
-    // MARK: - CGEvent Paste
-    
-    private func performCGEventPaste(completion: ((Result<Void, PasteError>) -> Void)? = nil) {
-        // CRITICAL: Prevent any paste operations during tests
-        if NSClassFromString("XCTestCase") != nil {
-            handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
-            completion?(.failure(PasteError.accessibilityPermissionDenied))
-            return
-        }
-        
-        // CRITICAL SECURITY CHECK: Always verify accessibility permission before any CGEvent operations
-        // This method should NEVER execute without proper permission - no exceptions
-        guard accessibilityManager.checkPermission() else {
-            // Permission is not granted - STOP IMMEDIATELY and report error
-            // We must never attempt CGEvent operations without permission
-            handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
-            completion?(.failure(PasteError.accessibilityPermissionDenied))
-            return
-        }
-        
-        // Permission is verified - proceed with paste operation
-        do {
-            try simulateCmdVPaste()
-            // CGEvent paste completed successfully
-            Logger.app.infoDev("✅ CGEvent Command+V paste successful")
-            handlePasteResult(.success(()))
-            completion?(.success(()))
-        } catch let error as PasteError {
-            // CGEvent failed - try Unicode-Typing fallback
-            Logger.app.infoDev("⚠️ CGEvent paste failed, attempting Unicode-Typing fallback: \(error.localizedDescription)")
-            performUnicodeTypingFallback(originalError: error, completion: completion)
-        } catch {
-            // Handle unexpected errors - also try Unicode-Typing fallback
-            Logger.app.infoDev("⚠️ CGEvent paste unexpected error, attempting Unicode-Typing fallback: \(error.localizedDescription)")
-            performUnicodeTypingFallback(originalError: PasteError.keyboardEventCreationFailed, completion: completion)
-        }
-    }
-    
-    // Removed - using AccessibilityPermissionManager instead
-    
-    private func simulateCmdVPaste() throws {
-        // CRITICAL: Prevent any paste operations during tests
-        if NSClassFromString("XCTestCase") != nil {
-            throw PasteError.accessibilityPermissionDenied
-        }
-        
-        // Final permission check before creating any CGEvents
-        // This is our last line of defense against unauthorized paste operations
-        guard accessibilityManager.checkPermission() else {
-            throw PasteError.accessibilityPermissionDenied
-        }
-        
-        // Create event source with proper session state
-        guard let source = CGEventSource(stateID: .combinedSessionState) else {
-            throw PasteError.eventSourceCreationFailed
-        }
-        
-        // Configure event source to suppress local events during paste operation
-        // This prevents interference from local keyboard input
-        source.setLocalEventsFilterDuringSuppressionState(
-            [.permitLocalMouseEvents, .permitSystemDefinedEvents],
-            state: .eventSuppressionStateSuppressionInterval
-        )
-        
-        // Create ⌘V key events for paste operation
-        let cmdFlag = CGEventFlags([.maskCommand])
-        let vKeyCode = CGKeyCode(kVK_ANSI_V) // V key code
-        
-        // Create both key down and key up events for complete key press simulation
-        guard let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
-              let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
-            throw PasteError.keyboardEventCreationFailed
-        }
-        
-        // Apply Command modifier flag to both events
-        keyVDown.flags = cmdFlag
-        keyVUp.flags = cmdFlag
-        
-        // Post the key events to the system
-        // This simulates pressing and releasing ⌘V
-        keyVDown.post(tap: .cgSessionEventTap)
-        keyVUp.post(tap: .cgSessionEventTap)
-    }
     
     private func handlePasteResult(_ result: Result<Void, PasteError>) {
         DispatchQueue.main.async {
@@ -258,33 +157,13 @@ class PasteManager: ObservableObject {
         handlePasteResult(.failure(PasteError.keyboardEventCreationFailed))
     }
     
-    /// Fallback handler that attempts Unicode-Typing when CGEvent fails
-    /// This provides the hybrid approach: CGEvent first, Unicode-Typing as backup
-    private func performUnicodeTypingFallback(originalError: PasteError, completion: ((Result<Void, PasteError>) -> Void)? = nil) {
-        Logger.app.infoDev("🔄 Starting Unicode-Typing fallback after CGEvent failure")
-        
-        // Try Unicode-Typing fallback
-        performUnicodeTyping { result in
-            switch result {
-            case .success:
-                Logger.app.infoDev("✅ Unicode-Typing fallback successful - hybrid paste completed")
-                // Don't call handlePasteResult again, performUnicodeTyping already did
-            case .failure(let fallbackError):
-                Logger.app.error("❌ Unicode-Typing fallback also failed: \(fallbackError.localizedDescription)")
-                Logger.app.error("❌ Both CGEvent and Unicode-Typing failed - paste operation failed")
-                // Report the original CGEvent error, not the fallback error
-                self.handlePasteResult(.failure(originalError))
-                completion?(.failure(originalError))
-            }
-        }
-    }
     
-    // MARK: - Unicode-Typing Fallback
+    // MARK: - Unicode-Typing
     
-    /// Unicode-Typing fallback strategy for apps that block CGEvent Command+V
-    /// Uses CGEventKeyboardSetUnicodeString to type text character by character
+    /// Unicode-Typing strategy that directly types text character by character
+    /// Uses CGEventKeyboardSetUnicodeString to type text without clipboard
     /// Works with Chrome, modern browsers, and restrictive applications
-    private func performUnicodeTyping(completion: ((Result<Void, PasteError>) -> Void)? = nil) {
+    private func performUnicodeTyping(text: String, completion: ((Result<Void, PasteError>) -> Void)? = nil) {
         // CRITICAL: Prevent any paste operations during tests
         if NSClassFromString("XCTestCase") != nil {
             handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
@@ -300,7 +179,7 @@ class PasteManager: ObservableObject {
         }
         
         do {
-            try executeUnicodeTyping()
+            try executeUnicodeTyping(text: text)
             // Success - text was typed via Unicode method
             Logger.app.infoDev("✅ Unicode-Typing paste successful")
             handlePasteResult(.success(()))
@@ -318,14 +197,14 @@ class PasteManager: ObservableObject {
         }
     }
     
-    private func executeUnicodeTyping() throws {
-        // Get text from clipboard
-        guard let textToType = NSPasteboard.general.string(forType: .string), !textToType.isEmpty else {
-            Logger.app.infoDev("📋 No text in clipboard for Unicode-Typing")
-            return // Empty clipboard is not an error
+    private func executeUnicodeTyping(text: String) throws {
+        // Validate input text
+        guard !text.isEmpty else {
+            Logger.app.infoDev("📋 No text provided for Unicode-Typing")
+            return // Empty text is not an error
         }
         
-        Logger.app.infoDev("🔤 Starting Unicode-Typing for \(textToType.count) characters: [\(textToType.prefix(50))...]")
+        Logger.app.infoDev("🔤 Starting Unicode-Typing for \(text.count) characters: [\(text.prefix(50))...]")
         
         // Check what app is currently active
         if let frontmostApp = NSWorkspace.shared.frontmostApplication {
@@ -343,7 +222,7 @@ class PasteManager: ObservableObject {
         Logger.app.infoDev("🔧 CGEventSource created with combinedSessionState")
         
         // Split text into manageable chunks (100 characters)
-        let chunks = textToType.chunked(into: 100)
+        let chunks = text.chunked(into: 100)
         Logger.app.infoDev("📦 Processing \(chunks.count) text chunks")
         
         // Process each chunk

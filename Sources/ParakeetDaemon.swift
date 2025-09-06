@@ -28,7 +28,7 @@ final class ParakeetDaemon {
         // Stop existing daemon if running
         await stop()
         
-        logger.info("Starting Parakeet daemon with Python: \(pythonPath)")
+        logger.infoDev("Starting Parakeet daemon with Python: \(pythonPath)")
         
         // Setup process and pipes
         let process = Process()
@@ -59,12 +59,12 @@ final class ParakeetDaemon {
         
         // Start the process
         try process.run()
-        logger.info("Parakeet daemon process started (PID: \(process.processIdentifier))")
+        logger.infoDev("Parakeet daemon process started (PID: \(process.processIdentifier))")
         
         // Wait for daemon to be ready
         try await waitForReady(timeout: 10.0)
         
-        logger.info("Parakeet daemon is ready for requests")
+        logger.infoDev("Parakeet daemon is ready for requests")
         // Health tracking starts with first actual transcription
     }
     
@@ -220,7 +220,7 @@ final class ParakeetDaemon {
                 let status = json["status"] as? String ?? "unknown"
                 let message = json["message"] as? String ?? ""
                 
-                logger.info("Daemon: \(status) - \(message)")
+                logger.infoDev("Daemon: \(status) - \(message)")
                 
                 // Handle status changes
                 switch status {

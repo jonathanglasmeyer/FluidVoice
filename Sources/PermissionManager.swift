@@ -38,12 +38,7 @@ class PermissionManager: ObservableObject {
     private let accessibilityManager = AccessibilityPermissionManager()
     
     var allPermissionsGranted: Bool {
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        if enableSmartPaste {
-            return microphonePermissionState == .granted && accessibilityPermissionState == .granted
-        } else {
-            return microphonePermissionState == .granted
-        }
+        return microphonePermissionState == .granted && accessibilityPermissionState == .granted
     }
     
     init() {
@@ -54,14 +49,8 @@ class PermissionManager: ObservableObject {
     func checkPermissionState() {
         checkMicrophonePermission()
         
-        // Only check Accessibility if SmartPaste is enabled
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        if enableSmartPaste {
-            checkAccessibilityPermission()
-        } else {
-            // Reset accessibility state if SmartPaste is disabled
-            accessibilityPermissionState = .granted // Consider it "granted" since it's not needed
-        }
+        // Always check accessibility permission for auto-typing
+        checkAccessibilityPermission()
     }
     
     private func checkMicrophonePermission() {
@@ -93,13 +82,11 @@ class PermissionManager: ObservableObject {
     }
     
     func requestPermissionWithEducation() {
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        
         let needsMicrophone = microphonePermissionState.needsRequest
-        let needsAccessibility = enableSmartPaste && accessibilityPermissionState.needsRequest
+        let needsAccessibility = accessibilityPermissionState.needsRequest
         
         let canRetryMicrophone = microphonePermissionState.canRetry
-        let canRetryAccessibility = enableSmartPaste && accessibilityPermissionState.canRetry
+        let canRetryAccessibility = accessibilityPermissionState.canRetry
         
         if needsMicrophone || needsAccessibility {
             showEducationalModal = true
@@ -114,20 +101,14 @@ class PermissionManager: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 // Simulate denied for consistent test behavior
                 self.microphonePermissionState = .denied
-                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                if enableSmartPaste {
-                    self.accessibilityPermissionState = .denied
-                }
+                self.accessibilityPermissionState = .denied
                 self.showRecoveryModal = true
             }
         } else {
             requestMicrophonePermission()
             
-            // Only request Accessibility if SmartPaste is enabled
-            let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-            if enableSmartPaste {
-                requestAccessibilityPermission()
-            }
+            // Always request accessibility permission
+            requestAccessibilityPermission()
         }
     }
     

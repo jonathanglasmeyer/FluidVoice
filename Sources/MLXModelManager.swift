@@ -97,7 +97,7 @@ final class MLXModelManager: ObservableObject {
                 self.totalCacheSize = totalSize
             }
             
-            logger.info("Found \(self.downloadedModels.count) MLX models, total size: \(self.formatBytes(totalSize))")
+            logger.infoDev("Found \(self.downloadedModels.count) MLX models, total size: \(self.formatBytes(totalSize))")
         } catch {
             logger.error("Failed to scan model directory: \(error.localizedDescription)")
         }

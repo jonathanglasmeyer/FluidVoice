@@ -13,7 +13,6 @@ struct SettingsView: View {
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("immediateRecording") private var immediateRecording = false
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
-    @AppStorage("enableSmartPaste") private var enableSmartPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
     @ObservedObject private var mlxModelManager = MLXModelManager.shared
@@ -116,20 +115,10 @@ struct SettingsView: View {
                         updateLoginItem(enabled: newValue)
                     }
                 
-                Toggle("Express Mode: Hotkey Start & Stop", isOn: $immediateRecording)
-                    .toggleStyle(.switch)
-                    .accessibilityLabel("Hotkey start and stop mode")
-                    .accessibilityHint("When enabled, the hotkey starts recording immediately and pressing it again stops recording and pastes the text")
-                
                 Toggle("Auto-Boost Microphone Volume", isOn: $autoBoostMicrophoneVolume)
                     .toggleStyle(.switch)
                     .accessibilityLabel("Automatically boost microphone volume")
                     .accessibilityHint("When enabled, microphone volume is temporarily increased to 100% during recording and restored afterward")
-                
-                Toggle("Smart Paste (Auto ⌘V)", isOn: $enableSmartPaste)
-                    .toggleStyle(.switch)
-                    .accessibilityLabel("Automatically paste transcribed text")
-                    .accessibilityHint("When enabled, automatically simulates ⌘V to paste transcribed text. Requires Input Monitoring permission.")
                 
                 Toggle("Play Completion Sound", isOn: $playCompletionSound)
                     .toggleStyle(.switch)

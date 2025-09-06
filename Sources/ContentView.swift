@@ -27,7 +27,6 @@ struct ContentView: View {
     @StateObject private var audioRecorder: AudioRecorder
     @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.openai
     @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
-    @AppStorage("immediateRecording") private var immediateRecording = false
     @StateObject private var speechService: SpeechToTextService
     @StateObject private var pasteManager = PasteManager()
     @StateObject private var statusViewModel = StatusViewModel()
@@ -97,14 +96,8 @@ struct ContentView: View {
                     if audioRecorder.isRecording {
                         stopAndProcess()
                     } else if showSuccess {
-                        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                        if enableSmartPaste {
-                            // User-triggered paste: Focus target app FIRST, then paste
-                            performUserTriggeredPaste()
-                        } else {
-                            // SmartPaste disabled - just dismiss window
-                            showSuccess = false
-                        }
+                        // Always perform paste - no more SmartPaste setting
+                        performUserTriggeredPaste(text: "")
                     } else {
                         startRecording()
                     }
@@ -117,16 +110,9 @@ struct ContentView: View {
             // Instruction text below microphone
             if audioRecorder.hasPermission && !isProcessing && !audioRecorder.isRecording {
                 if showSuccess {
-                    let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                    if enableSmartPaste {
-                        Text("Pasting...")
+                            Text("Pasting...")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary.opacity(0.7))
-                    } else {
-                        Text("Text copied to clipboard")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary.opacity(0.7))
-                    }
                 } else {
                     Text(LocalizedStrings.UI.spaceToRecord)
                         .font(.system(size: 10))
@@ -245,11 +231,8 @@ struct ContentView: View {
                 queue: .main
             ) { _ in
                 if showSuccess {
-                    let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                    if enableSmartPaste {
-                        // User pressed Return - trigger paste
-                        performUserTriggeredPaste()
-                    }
+                    // User pressed Return - trigger paste
+                    performUserTriggeredPaste(text: "")
                 }
             }
             
@@ -429,7 +412,7 @@ struct ContentView: View {
     
     // MARK: - Paste Management
     
-    private func performUserTriggeredPaste() {
+    private func performUserTriggeredPaste(text: String) {
         guard let targetApp = findValidTargetApp() else {
             showSuccess = false
             hideRecordingWindow()
@@ -442,7 +425,7 @@ struct ContentView: View {
             self.hideRecordingWindow()
             
             // Then activate target app and paste
-            self.activateTargetAppAndPaste(targetApp)
+            self.activateTargetAppAndPaste(targetApp, text: text)
         }
     }
     
@@ -490,14 +473,14 @@ struct ContentView: View {
         }
     }
     
-    private func activateTargetAppAndPaste(_ target: NSRunningApplication) {
+    private func activateTargetAppAndPaste(_ target: NSRunningApplication, text: String) {
         Task { @MainActor in
             do {
                 // Activate the target app and wait for it to become active
                 try await activateApplication(target)
                 
                 // Perform paste operation with completion handling
-                await pasteManager.pasteWithCompletionHandler()
+                await pasteManager.pasteWithCompletionHandler(text: text)
                 
                 // Reset success state after paste completes
                 self.showSuccess = false
@@ -654,8 +637,7 @@ struct ContentView: View {
                         finalText = corrected
                     }
                 }
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(finalText, forType: .string)
+                // Text is ready - no clipboard manipulation needed
                 let shouldSave: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                 if shouldSave {
                     let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
@@ -703,37 +685,11 @@ struct ContentView: View {
         // Play gentle completion sound
         soundManager.playCompletionSound()
         
-        // Handle auto-dismiss based on SmartPaste setting
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        if enableSmartPaste {
-            if !awaitingSemanticPaste {
-                // Automatically trigger paste after minimal delay only if not awaiting semantic
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    performUserTriggeredPaste()
-                }
-            }
-        } else {
-            // Restore focus to previous app when SmartPaste is disabled
-            NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
-            
-            // Auto-dismiss after 2 seconds when SmartPaste is disabled
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                let recordWindow = NSApp.windows.first { window in
-                    window.title == "FluidVoice Recording"
-                }
-                
-                if let window = recordWindow {
-                    window.orderOut(nil)
-                } else {
-                    // Fallback to key window if title search fails
-                    NSApplication.shared.keyWindow?.orderOut(nil)
-                }
-                
-                // Notify app delegate to restore focus to previous app
-                NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
-                
-                // Reset success state
-                showSuccess = false
+        // Always auto-paste after transcription
+        if !awaitingSemanticPaste {
+            // Automatically trigger paste after minimal delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                performUserTriggeredPaste(text: "")
             }
         }
     }
@@ -786,15 +742,12 @@ struct ContentView: View {
                 
                 // Defer history save until after semantic correction so we store the final text
                 
-                // Copy raw text to clipboard immediately
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
+                // Text is transcribed - no clipboard manipulation needed
 
-                // Determine if we should wait for semantic before SmartPaste
-                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                // Determine if we should wait for semantic correction before pasting
                 let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
                 let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
-                let shouldAwaitSemanticForPaste = enableSmartPaste && ((mode == .localMLX) || (mode == .cloud && (transcriptionProvider == .openai || transcriptionProvider == .gemini)))
+                let shouldAwaitSemanticForPaste = ((mode == .localMLX) || (mode == .cloud && (transcriptionProvider == .openai || transcriptionProvider == .gemini)))
 
                 if shouldAwaitSemanticForPaste {
                     // Keep processing state and update status to semantic correction
@@ -803,7 +756,7 @@ struct ContentView: View {
                         progressMessage = "Semantic correction..."
                         // keep isProcessing = true until semantic completes
                     }
-                    // Start semantic correction in background; on completion, update clipboard and paste corrected text
+                    // Start semantic correction in background; on completion, paste corrected text
                     Task.detached { [text, transcriptionProvider] in
                         let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider)
                         let shouldSave2: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
@@ -813,13 +766,11 @@ struct ContentView: View {
                             await DataManager.shared.saveTranscriptionQuietly(record)
                         }
                         await MainActor.run {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(corrected, forType: .string)
                             transcriptionStartTime = nil
                             isProcessing = false
                             showConfirmationAndPaste(text: corrected)
                             if awaitingSemanticPaste {
-                                performUserTriggeredPaste()
+                                performUserTriggeredPaste(text: corrected)
                                 awaitingSemanticPaste = false
                             }
                         }
@@ -830,12 +781,9 @@ struct ContentView: View {
                         transcriptionStartTime = nil
                         showConfirmationAndPaste(text: text)
                     }
-                    // If not awaiting, still run correction to update clipboard and save history with corrected
+                    // If not awaiting, still run correction to save history with corrected text
                     Task.detached { [text, transcriptionProvider] in
                         let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider)
-                        // Update clipboard even if identical; clipboard manager may dedupe
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(corrected, forType: .string)
                         // Save corrected text to history if enabled
                         let shouldSave3: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                         if shouldSave3 {
