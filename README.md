@@ -10,24 +10,24 @@
 ![CoreML](https://img.shields.io/badge/CoreML-✓-blue?style=flat-square)
 ![MLX](https://img.shields.io/badge/MLX-✓-purple?style=flat-square)
 
-> ⚠️ **Heavy development in progress** - Features and APIs may change frequently.
+> ⚠️ **Development in progress** - Features and APIs may change frequently.
 
 macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording, press again to stop. Text appears directly in your current application.
 
 ## Key Advantages
 
-### 🔒 **Complete Privacy & Enterprise-Ready**
+### **Complete Privacy & Enterprise-Ready**
 - **Zero cloud dependencies** - Audio never leaves your device
 - **GDPR/SOX compliant** - No data sent to external servers
 - **Enterprise security** - Safe for confidential meetings and sensitive content
 - **Offline-first design** - Works without internet connection
 
-### 🌍 **Intelligent Multilingual Support**
+### **Intelligent Multilingual Support**
 - **Automatic language detection** - Switch between languages mid-sentence
 - **25+ European languages** with Parakeet v3 (German, French, Spanish, Italian, etc.)
 - **No manual language switching** - Just speak, FluidVoice adapts
 
-### ⚡ **Ultra-Fast Performance**
+### **Ultra-Fast Performance**
 - **Sub-second transcription**: 0.1-0.3 second response times
 - **10x faster** than traditional approaches with optimized model loading
 - **Instant response** - Models preloaded and ready
