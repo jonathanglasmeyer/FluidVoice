@@ -68,28 +68,7 @@ cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 
 ### Local Transcription (Recommended)
 
-**WhisperKit**
-- No API key required
-- Audio stays on your device
-- CoreML hardware acceleration with Neural Engine
-- 6 model sizes available (39MB to 2.9GB)
-- Models download automatically on first use
-
-**Parakeet v3**
-- No API key required
-- 25 European languages with automatic detection
-- MLX framework optimized for Apple Silicon
-- Daemon mode for fast response times
-- ~600MB model downloads on setup
-- Setup via "Download Parakeet v3 Model" in settings
-
-## Usage 🎯
-
-1. Press ⌘⇧Space to start recording (background, no window)
-2. Press ⌘⇧Space again to stop and transcribe
-3. Text appears directly in current application
-
-The app lives in your menu bar - click the microphone icon for settings.
+Both transcription engines work offline with no API keys required. Models download automatically on first use.
 
 
 
