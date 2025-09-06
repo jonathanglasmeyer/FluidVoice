@@ -325,11 +325,11 @@ class PasteManager: ObservableObject {
             return // Empty clipboard is not an error
         }
         
-        // Logger.app.infoDev("🔤 Starting Unicode-Typing for \(textToType.count) characters")
+        Logger.app.infoDev("🔤 Starting Unicode-Typing for \(textToType.count) characters: [\(textToType.prefix(50))...]")
         
-        // Simple approach: just type to whatever app is currently active
+        // Check what app is currently active
         if let frontmostApp = NSWorkspace.shared.frontmostApplication {
-            // Logger.app.infoDev("🎯 Typing to currently active app: \(frontmostApp.localizedName ?? "Unknown") (PID: \(frontmostApp.processIdentifier))")
+            Logger.app.infoDev("🎯 Typing to currently active app: \(frontmostApp.localizedName ?? "Unknown") (PID: \(frontmostApp.processIdentifier))")
         } else {
             Logger.app.warning("⚠️ No active app found - proceeding anyway")
         }
@@ -339,12 +339,16 @@ class PasteManager: ObservableObject {
             throw PasteError.eventSourceCreationFailed
         }
         
+        // Check event source flags/state
+        Logger.app.infoDev("🔧 CGEventSource created with combinedSessionState")
+        
         // Split text into manageable chunks (100 characters)
         let chunks = textToType.chunked(into: 100)
-        // Logger.app.infoDev("📦 Processing \(chunks.count) text chunks")
+        Logger.app.infoDev("📦 Processing \(chunks.count) text chunks")
         
         // Process each chunk
         for (index, chunk) in chunks.enumerated() {
+            Logger.app.infoDev("🔤 Processing chunk \(index + 1)/\(chunks.count): [\(chunk.prefix(20))...]")
             try processUnicodeChunk(chunk, chunkIndex: index, source: source)
             
             // Small delay between chunks to prevent overwhelming the target app
@@ -353,7 +357,7 @@ class PasteManager: ObservableObject {
             }
         }
         
-        // Logger.app.infoDev("✅ Unicode-Typing completed successfully")
+        Logger.app.infoDev("✅ Unicode-Typing completed successfully - \(chunks.count) chunks processed")
     }
     
     private func processUnicodeChunk(_ chunk: String, chunkIndex: Int, source: CGEventSource) throws {
@@ -365,8 +369,22 @@ class PasteManager: ObservableObject {
             throw PasteError.keyboardEventCreationFailed
         }
         
+        // CRITICAL FIX: Clear ALL modifier flags to prevent Cmd+A behavior
+        // The hotkey (Cmd+Shift+Space) can leave Command modifier active
+        // This was causing Unicode events to be interpreted as Command+text
+        let originalFlags = unicodeEvent.flags
+        unicodeEvent.flags = [] // Clear all modifier flags
+        
+        // Debug logging to track modifier flag issues
+        if !originalFlags.isEmpty {
+            Logger.app.infoDev("🐛 MODIFIER DEBUG: Cleared flags \(originalFlags) from Unicode event")
+        }
+        
         // Set the Unicode string for this chunk
         unicodeEvent.keyboardSetUnicodeString(stringLength: unicodeChars.count, unicodeString: unicodeChars)
+        
+        // Additional debug logging
+        Logger.app.infoDev("🔤 Unicode chunk \(chunkIndex + 1): \(unicodeChars.count) chars, flags=\(unicodeEvent.flags)")
         
         // Try multiple tap locations for maximum compatibility
         let tapLocations: [CGEventTapLocation] = [
@@ -379,7 +397,7 @@ class PasteManager: ObservableObject {
         for tapLocation in tapLocations {
             unicodeEvent.post(tap: tapLocation)
             posted = true
-            // Logger.app.infoDev("📤 Posted Unicode chunk \(chunkIndex + 1)")
+            Logger.app.infoDev("📤 Posted Unicode chunk \(chunkIndex + 1) to \(tapLocation)")
             break // Only use first tap location for now, can add retry logic later
         }
         
