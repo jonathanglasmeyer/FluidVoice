@@ -90,12 +90,17 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     echo "✅ UV binary downloaded and ready"
   fi
   
-  # Copy resources efficiently with symlinks
+  # Copy Bundle resources (Python scripts, etc.) first
+  BUNDLE_RESOURCES=".build-dev/arm64-apple-macosx/debug/FluidVoice_FluidVoice.bundle"
+  if [ -d "$BUNDLE_RESOURCES" ]; then
+    echo "📦 Copying bundle resources..."
+    cp -r "$BUNDLE_RESOURCES"/* "$APP_BUNDLE/Contents/Resources/"
+  fi
+  
+  # Copy additional Resources directory 
   if [ -d "Sources/Resources" ]; then
-    # Remove the placeholder Resources directory
-    rmdir "$APP_BUNDLE/Contents/Resources" 2>/dev/null || true
-    # Create symlink to actual resources
-    ln -sf "../../../Sources/Resources" "$APP_BUNDLE/Contents/Resources"
+    echo "🔗 Copying additional resources..."
+    cp -r "Sources/Resources"/* "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
   fi
   
   # Code sign if identity available

@@ -24,6 +24,7 @@ let package = Package(
             resources: [
                 .process("Assets.xcassets"),
                 .copy("parakeet_transcribe_pcm.py"),
+                .copy("parakeet_daemon.py"),
                 .copy("mlx_semantic_correct.py"),
                 // Bundle additional resources like uv binary and lock files
                 .copy("Resources")

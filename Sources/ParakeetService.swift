@@ -42,6 +42,11 @@ class ParakeetService {
     /// Cached flag set at app startup - avoids expensive model checks during transcription
     static var isModelAvailable: Bool = false
     
+    /// Use high-performance daemon mode when available
+    private var useDaemonMode: Bool {
+        return UserDefaults.standard.bool(forKey: "parakeetDaemonMode")
+    }
+    
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
 
         // Ultra-fast check: use cached flag set at app startup
@@ -56,8 +61,38 @@ class ParakeetService {
             try? FileManager.default.removeItem(at: pcmDataURL)
         }
         
-        // Step 2: Call Python with the raw PCM data instead of original audio
-        return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL, pythonPath: pythonPath)
+        // Step 2: Choose transcription method based on daemon availability
+        if useDaemonMode {
+            return try await transcribeWithDaemon(pcmDataURL: pcmDataURL, pythonPath: pythonPath)
+        } else {
+            return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL, pythonPath: pythonPath)
+        }
+    }
+    
+    /// High-performance daemon-based transcription (eliminates Python startup overhead)
+    private func transcribeWithDaemon(pcmDataURL: URL, pythonPath: String) async throws -> String {
+        
+        // Ensure daemon is running
+        if !(try await ParakeetDaemon.shared.ping()) {
+            logger.info("Starting Parakeet daemon for high-performance transcription...")
+            try await ParakeetDaemon.shared.start(pythonPath: pythonPath)
+        }
+        
+        // Send transcription request to daemon
+        let response = try await ParakeetDaemon.shared.transcribe(pcmFilePath: pcmDataURL.path)
+        
+        if response.isSuccess {
+            logger.info("Parakeet daemon transcription successful")
+            if let language = response.language {
+                logger.info("Detected language: \(language)")
+            }
+            if let confidence = response.confidence {
+                logger.info("Detection confidence: \(confidence)")
+            }
+            return response.text
+        } else {
+            throw ParakeetError.transcriptionFailed(response.error ?? "Unknown daemon error")
+        }
     }
     
     private func processAudioToRawPCM(audioFileURL: URL) async throws -> URL {

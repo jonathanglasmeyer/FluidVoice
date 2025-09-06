@@ -140,6 +140,13 @@ else
   echo "⚠️ parakeet_transcribe_pcm.py not found, Parakeet functionality will not work"
 fi
 
+if [ -f "Sources/parakeet_daemon.py" ]; then
+  cp Sources/parakeet_daemon.py FluidVoice.app/Contents/Resources/
+  echo "Copied Parakeet daemon Python script"
+else
+  echo "⚠️ parakeet_daemon.py not found, Parakeet daemon mode will not work"
+fi
+
 if [ -f "Sources/mlx_semantic_correct.py" ]; then
   cp Sources/mlx_semantic_correct.py FluidVoice.app/Contents/Resources/
   echo "Copied MLX semantic correction Python script"

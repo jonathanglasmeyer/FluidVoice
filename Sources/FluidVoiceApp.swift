@@ -100,6 +100,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ParakeetService.isModelAvailable = downloadedModels.contains(MLXModelManager.parakeetRepo)
             
             Logger.app.infoDev("MLX model cache initialized at startup - Parakeet available: \(ParakeetService.isModelAvailable)")
+            
+            // Early daemon initialization for zero cold start (if daemon mode enabled)
+            let daemonModeEnabled = UserDefaults.standard.bool(forKey: "parakeetDaemonMode")
+            if ParakeetService.isModelAvailable && daemonModeEnabled {
+                do {
+                    Logger.app.infoDev("🚀 Starting Parakeet daemon preload...")
+                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
+                    try await ParakeetDaemon.shared.start(pythonPath: pyURL.path)
+                    Logger.app.infoDev("✅ Parakeet daemon preloaded at startup - zero cold start ready")
+                } catch {
+                    Logger.app.infoDev("⚠️ Daemon preload failed (will fallback to lazy loading): \(error.localizedDescription)")
+                }
+            }
         }
         
         // Setup app configuration
@@ -479,6 +492,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Clean up window references
         recordingWindow = nil
         recordingWindowDelegate = nil
+        
+        // Gracefully shutdown Parakeet daemon
+        Task {
+            await ParakeetDaemon.shared.stop()
+        }
         
         // Cleanup is handled by the deinitializers of the helper classes
         AppSetupHelper.cleanupOldTemporaryFiles()
