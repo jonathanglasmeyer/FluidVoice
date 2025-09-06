@@ -34,11 +34,9 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 - **Real-time feel** - Near-zero latency for short audio clips
 
 ## Features
-
 ### Local Transcription
 - **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB) - Supports 50+ languages with seamless detection
 - **Parakeet v3**: 25 European languages, daemon mode, auto-detection
-
 
 ## Legacy Features (Will Be Removed)
 - **Window-based recording**: Recording window interface (disable "Express Mode" in settings)
@@ -56,11 +54,6 @@ source .build-config && fv-build
 cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 ```
 
-
-
-
-
-
 ## Troubleshooting
 
 **"Unidentified Developer" Warning**
@@ -74,7 +67,6 @@ cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 **Parakeet Setup Issues**
 - Click "Download Parakeet v3 Model" in settings
 - Check that download completed (~600MB)
-- Use "Test" button to validate setup
 
 ## Contributing
 
