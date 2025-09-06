@@ -14,6 +14,9 @@ class AudioDeviceInspector {
         // Log default input device
         logDefaultInputDevice()
         
+        // Log user-selected microphone from settings
+        logUserSelectedMicrophone()
+        
         // Log all available input devices
         logAllInputDevices()
         
@@ -104,6 +107,93 @@ class AudioDeviceInspector {
         }
         
         Logger.audioInspector.infoDev("🔍 Found \(inputDeviceCount) input devices total")
+    }
+    
+    private static func logUserSelectedMicrophone() {
+        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
+        
+        if selectedMicrophoneID.isEmpty {
+            Logger.audioInspector.infoDev("⚙️ USER SETTING: No microphone selected in settings (using system default)")
+        } else {
+            Logger.audioInspector.infoDev("⚙️ USER SETTING: Selected microphone ID: '\(selectedMicrophoneID)'")
+            
+            // Try to find the corresponding device name
+            if let deviceName = findUserSelectedDeviceName(uniqueID: selectedMicrophoneID) {
+                Logger.audioInspector.infoDev("⚙️ USER SETTING: Selected device name: '\(deviceName)'")
+                
+                // Try to find the corresponding AudioDeviceID
+                if let audioDeviceID = findAudioDeviceIDForName(deviceName: deviceName) {
+                    Logger.audioInspector.infoDev("⚙️ USER SETTING: Corresponding AudioDeviceID: \(audioDeviceID)")
+                } else {
+                    Logger.audioInspector.infoDev("⚠️ USER SETTING: Could not find AudioDeviceID for selected device")
+                }
+            } else {
+                Logger.audioInspector.infoDev("⚠️ USER SETTING: Could not find device name for selected ID (device may be disconnected)")
+            }
+        }
+    }
+    
+    private static func findUserSelectedDeviceName(uniqueID: String) -> String? {
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone],
+            mediaType: .audio,
+            position: .unspecified
+        )
+        
+        return discoverySession.devices.first(where: { $0.uniqueID == uniqueID })?.localizedName
+    }
+    
+    private static func findAudioDeviceIDForName(deviceName: String) -> AudioDeviceID? {
+        // Get all audio devices
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        
+        var size: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size
+        )
+        
+        guard status == noErr else { return nil }
+        
+        let deviceCount = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var devices = [AudioDeviceID](repeating: 0, count: deviceCount)
+        
+        status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size,
+            &devices
+        )
+        
+        guard status == noErr else { return nil }
+        
+        // Search for matching device by name
+        for deviceID in devices {
+            guard hasInputChannels(deviceID: deviceID) else { continue }
+            
+            if let audioDeviceName = getDeviceName(deviceID: deviceID) {
+                // Try exact name match first
+                if audioDeviceName == deviceName {
+                    return deviceID
+                }
+                
+                // Try partial name match (some devices may have slightly different names)
+                if audioDeviceName.contains(deviceName) || deviceName.contains(audioDeviceName) {
+                    return deviceID
+                }
+            }
+        }
+        
+        return nil
     }
     
     private static func getDeviceName(deviceID: AudioDeviceID) -> String? {
