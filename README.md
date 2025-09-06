@@ -26,9 +26,8 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 - **Automatic language detection** - Switch between languages mid-sentence
 - **25+ European languages** with Parakeet v3 (German, French, Spanish, Italian, etc.)
 - **No manual language switching** - Just speak, FluidVoice adapts
-- **WhisperKit multilingual** - Supports 50+ languages with seamless detection
 
-### ⚡ **Ultra-Fast Performance**  
+### ⚡ **Ultra-Fast Performance**
 - **Sub-second transcription**: 0.1-0.3 second response times
 - **10x faster** than traditional approaches with optimized model loading
 - **Instant response** - Models preloaded and ready
@@ -37,7 +36,7 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 ## Features
 
 ### Local Transcription
-- **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB)
+- **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB) - Supports 50+ languages with seamless detection
 - **Parakeet v3**: 25 European languages, daemon mode, auto-detection
 
 ### Technical Features
