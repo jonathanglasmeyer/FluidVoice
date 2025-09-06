@@ -735,12 +735,7 @@ struct SettingsView: View {
     }
     
     private func loadAvailableMicrophones() {
-        let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.microphone],
-            mediaType: .audio,
-            position: .unspecified
-        )
-        availableMicrophones = discoverySession.devices
+        availableMicrophones = AudioDeviceManager.shared.getAllAvailableDevices()
     }
     
     private func loadAPIKeys() {
