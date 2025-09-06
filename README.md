@@ -39,24 +39,16 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 - **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB) - Supports 50+ languages with seamless detection
 - **Parakeet v3**: 25 European languages, daemon mode, auto-detection
 
-### Technical Features
-- Model preloading eliminates startup delays
-- Daemon architecture for fast response times
 
 ## Legacy Features (Will Be Removed)
 - **Window-based recording**: Recording window interface (disable "Express Mode" in settings)
 - **Manual copy/paste workflow**: Use background mode instead
 - **Cloud APIs**: OpenAI Whisper, Google Gemini - require API keys, send audio to external servers
 
-## Requirements 📋
+## Requirements
 - macOS 14.0 (Sonoma) or later
-- Swift 5.9+ (for building from source)
 
-## Installation 🛠️
-### Option 1: Download Pre-built App
-TBD
-
-### Option 2: Build from Source
+## Installation
 ```bash
 git clone https://github.com/mazdak/FluidVoice.git
 cd FluidVoice
@@ -64,31 +56,12 @@ source .build-config && fv-build
 cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 ```
 
-## Setup 🔧
-
-### Local Transcription (Recommended)
-
-Both transcription engines work offline with no API keys required. Models download automatically on first use.
 
 
 
-## Privacy & Security 🔒
 
-- **Local Processing**: Audio stays on your device with WhisperKit and Parakeet
-- **No Network Requests**: All transcription happens locally
-- **No Tracking**: No usage data or analytics collected
-- **Microphone Permission**: You'll be prompted once on first use
-- **Open Source**: Full source code available for auditing
 
-## Keyboard Shortcuts ⌨️
-
-| Action | Shortcut |
-|--------|----------|
-| Start Recording | ⌘⇧Space |
-| Stop Recording & Transcribe | ⌘⇧Space |
-| Open Settings | Click menu bar icon |
-
-## Troubleshooting 🔧
+## Troubleshooting
 
 **"Unidentified Developer" Warning**
 - Right-click the app and select "Open" instead of double-clicking
@@ -105,14 +78,8 @@ Both transcription engines work offline with no API keys required. Models downlo
 
 ## Contributing
 
-Contributions welcome! See [CLAUDE.md](CLAUDE.md) for development setup and guidelines.
+See [CLAUDE.md](CLAUDE.md) for development setup and guidelines.
 
 ## Acknowledgments
 
-Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper).
-
-Built with SwiftUI, AppKit, WhisperKit, Parakeet-MLX, Alamofire, HotKey, KeychainAccess. MIT License.
-
----
-
-Made with ❤️ for the macOS community. If you find this useful, please consider starring the repository!
+Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper). Built with SwiftUI, AppKit, WhisperKit, Parakeet-MLX. MIT License.
