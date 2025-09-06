@@ -11,6 +11,8 @@ final class ParakeetDaemon {
     private var stderrPipe: Pipe?
     private var isReady = false
     private var pythonPath: String
+    private var consecutiveFailures = 0
+    private var lastHealthyTime = Date()
     
     /// Shared daemon instance
     static let shared = ParakeetDaemon()
@@ -63,6 +65,7 @@ final class ParakeetDaemon {
         try await waitForReady(timeout: 10.0)
         
         logger.info("Parakeet daemon is ready for requests")
+        // Health tracking starts with first actual transcription
     }
     
     /// Stop the daemon gracefully
@@ -101,19 +104,37 @@ final class ParakeetDaemon {
     /// Send transcription request to daemon
     func transcribe(pcmFilePath: String) async throws -> ParakeetDaemonResponse {
         guard isReady else {
+            recordFailure()
             throw ParakeetDaemonError.daemonNotReady
         }
         
-        let request = ["pcm_path": pcmFilePath]
-        let response = try await sendCommand(request)
-        
-        return ParakeetDaemonResponse(
-            status: response["status"] as? String ?? "unknown",
-            text: response["text"] as? String ?? "",
-            language: response["language"] as? String,
-            confidence: response["confidence"] as? Float,
-            error: response["message"] as? String
-        )
+        do {
+            let request = ["pcm_path": pcmFilePath]
+            let response = try await sendCommand(request)
+            
+            let result = ParakeetDaemonResponse(
+                status: response["status"] as? String ?? "unknown",
+                text: response["text"] as? String ?? "",
+                language: response["language"] as? String,
+                confidence: response["confidence"] as? Float,
+                error: response["message"] as? String
+            )
+            
+            // Record success or failure based on response
+            if result.isSuccess {
+                recordSuccess()
+            } else {
+                recordFailure()
+                logger.warning("🚨 DAEMON ALERT: Transcription failed - \(result.error ?? "unknown error")")
+            }
+            
+            return result
+            
+        } catch {
+            recordFailure()
+            logger.error("🚨 DAEMON ALERT: Command failed - \(error.localizedDescription)")
+            throw error
+        }
     }
     
     /// Check if daemon is alive
@@ -257,6 +278,26 @@ final class ParakeetDaemon {
         isReady = false
         pendingResponseHandler = nil
         readyCompletion = nil
+    }
+    
+    // MARK: - Health Monitoring
+    
+    private func recordSuccess() {
+        self.consecutiveFailures = 0
+        self.lastHealthyTime = Date()
+    }
+    
+    private func recordFailure() {
+        self.consecutiveFailures += 1
+        
+        let timeSinceHealthy = Date().timeIntervalSince(self.lastHealthyTime)
+        
+        // Alert on consecutive failures or prolonged unhealthiness
+        if self.consecutiveFailures >= 3 {
+            logger.error("🚨 DAEMON CRITICAL: \(self.consecutiveFailures) consecutive failures!")
+        } else if timeSinceHealthy > 300 { // 5 minutes
+            logger.error("🚨 DAEMON CRITICAL: No successful operation for \(Int(timeSinceHealthy))s")
+        }
     }
 }
 
