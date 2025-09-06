@@ -46,7 +46,7 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 ## Legacy Features (Will Be Removed)
 - **Window-based recording**: Recording window interface (disable "Express Mode" in settings)
 - **Manual copy/paste workflow**: Use background mode instead
-- **Cloud APIs**: OpenAI Whisper, Google Gemini (use local transcription instead)
+- **Cloud APIs**: OpenAI Whisper, Google Gemini - require API keys, send audio to external servers
 
 ## Requirements 📋
 - macOS 14.0 (Sonoma) or later
@@ -83,11 +83,6 @@ cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 - ~600MB model downloads on setup
 - Setup via "Download Parakeet v3 Model" in settings
 
-### Legacy Cloud APIs
-- OpenAI Whisper and Google Gemini are still available but will be removed
-- Requires API keys and sends audio to external servers
-- Use local transcription for better privacy and performance
-
 ## Usage 🎯
 
 1. Press ⌘⇧Space to start recording (background, no window)
@@ -95,9 +90,6 @@ cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 3. Text appears directly in current application
 
 The app lives in your menu bar - click the microphone icon for settings.
-
-### Legacy Window Mode
-If you disable "Express Mode" in settings, FluidVoice will use the old window-based interface. This mode will be removed in future versions.
 
 
 
