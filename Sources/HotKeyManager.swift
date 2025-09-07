@@ -4,6 +4,7 @@ import HotKey
 
 class HotKeyManager {
     private var hotKey: HotKey?
+    private var fnKeyMonitor: Any?
     private let onHotKeyPressed: () -> Void
     
     init(onHotKeyPressed: @escaping () -> Void) {
@@ -34,17 +35,38 @@ class HotKeyManager {
     
     private func setupHotKeyFromString(_ hotkeyString: String) {
         // Clear existing hotkey
+        clearHotkey()
+        
+        if hotkeyString == "Fn" {
+            setupFnKeyMonitor()
+        } else {
+            // Parse the hotkey string and set up new hotkey
+            let (key, modifiers) = parseHotkeyString(hotkeyString)
+            
+            if let key = key {
+                hotKey = HotKey(key: key, modifiers: modifiers)
+                hotKey?.keyDownHandler = { [weak self] in
+                    self?.onHotKeyPressed()
+                }
+            }
+        }
+    }
+    
+    private func clearHotkey() {
         hotKey = nil
-        
-        // Parse the hotkey string and set up new hotkey
-        let (key, modifiers) = parseHotkeyString(hotkeyString)
-        
-        if let key = key {
-            hotKey = HotKey(key: key, modifiers: modifiers)
-            hotKey?.keyDownHandler = { [weak self] in
+        if let monitor = fnKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            fnKeyMonitor = nil
+        }
+    }
+    
+    private func setupFnKeyMonitor() {
+        fnKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
+            if event.keyCode == 63 && event.modifierFlags.contains(.function) {
                 self?.onHotKeyPressed()
             }
         }
+        Logger.app.infoDev("Fn key monitoring activated")
     }
     
     private func parseHotkeyString(_ hotkeyString: String) -> (Key?, NSEvent.ModifierFlags) {
@@ -159,7 +181,7 @@ class HotKeyManager {
     }
     
     deinit {
-        hotKey = nil
+        clearHotkey()
         NotificationCenter.default.removeObserver(self)
     }
 }

@@ -1037,6 +1037,13 @@ struct HotKeyRecorderView: View {
     
     private func handleKeyEvent(_ event: NSEvent) {
         if event.type == .flagsChanged {
+            // Check for Fn key (keyCode 63)
+            if event.keyCode == 63 && event.modifierFlags.contains(.function) {
+                stopRecording()
+                onComplete("Fn")
+                isRecording = false
+                return
+            }
             recordedModifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
             updateDisplayText()
         } else if event.type == .keyDown {
