@@ -36,7 +36,8 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 ### **Intelligent Vocabulary Correction**
 - **Ultra-fast pattern matching**: 3-5ms correction (vs 1500-3000ms for LLM-based approaches)
 - **Privacy-first processing**: All vocabulary correction happens locally, zero network requests
-- **Technical terminology**: Automatically corrects "api" → "API", "github" → "GitHub", "typescript" → "TypeScript"
+- **Default presets**: Includes common technical terms - "api" → "API", "github" → "GitHub", "typescript" → "TypeScript"
+- **Domain adaptable**: Easily customize for any field - legal, medical, scientific, or business terminology
 - **JSONC configuration**: Developer-friendly config with inline comments at `~/.config/fluidvoice/vocabulary.jsonc`
 - **Live reload**: Edit vocabulary while FluidVoice runs - changes apply instantly
 
