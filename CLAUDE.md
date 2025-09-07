@@ -11,7 +11,11 @@
 - Nie `.build-dev/debug/FluidVoice` verwenden (Bundle-Struktur!)
 - Immer `/usr/bin/log` (nicht `log`) mit `--info` Flag
 - Debug Audio: `defaults write com.fluidvoice.app enableDebugAudioMode -bool true`
-- **ALWAYS use `.infoDev()` not `.info()`** - Logger.app.infoDev(), Logger.audioInspector.infoDev()
+- **🚨 CRITICAL: ALWAYS use `.infoDev()` not `.info()` for ALL logging!** 
+  - ✅ `logger.infoDev("message")` → visible in logs
+  - ❌ `logger.info("message")` → shows as `<private>` 
+  - Examples: Logger.app.infoDev(), Logger.audioInspector.infoDev()
+  - **RULE: If AI adds ANY logger.info() it MUST be logger.infoDev()**
 - Privacy Logs: Device names show as `<private>` - use `sudo log stream` for real names
 - **AI niemals BashOutput für Logs:** User copy/pastet relevante Logs - spart Context Window
 

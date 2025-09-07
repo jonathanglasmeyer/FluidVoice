@@ -1,7 +1,6 @@
 # FluidVoice Feature Backlog
 
 ## 🚀 High Priority Features
-- **[Custom Vocabulary](custom-vocabulary-feature.md)** - User-customizable vocabulary correction via enhanced LLM prompts
 - **[Developer Config File](developer-config-file-feature.md)** - JSON-based configuration with UI sync for developer workflows
 - **[Audio Ducking During Recording](audio-ducking-feature.md)** - Automatically reduce background audio (Spotify, etc.) during voice recording
 - **[Miniwindow Recording Indicator](miniwindow-recording-indicator.md)** - Small floating window with waveform during recording (WhisperFlow-inspired)
@@ -10,6 +9,7 @@
 
 ## ✅ Completed Features
 
+- **[Fast Vocabulary Correction](done/fast-vocabulary-correction.md)** ✅ **DONE** - Ultra-fast privacy-first vocabulary correction (150x faster than LLMs)
 - **[Fn Key Hotkey Support](done/fn-key-feature.md)** ✅ **DONE** - Enable Function key combinations for global shortcuts
 - **[Express Mode: Background Recording](done/express-mode-background-recording.md)** ✅ **DONE** - Revolutionary WhisperFlow-style background recording with hotkey start/stop
 - **[Parakeet v3 Multilingual Upgrade](done/parakeet-v3-multilingual-upgrade.md)** ✅ **DONE** - 25 European languages with automatic detection and performance boost
@@ -24,7 +24,7 @@
 |---------|----------|--------|--------|
 | Express Mode | High | ✅ **Completed** | UX Innovation - Revolutionary background recording |
 | Parakeet v3 Multilingual | High | ✅ **Completed** | Performance Critical - 25 languages + auto-detection |
-| Custom Vocabulary | Medium | 📋 **Planned** | Quality Improvement - user-specific term accuracy |
+| Fast Vocabulary Correction | High | ✅ **Completed** | Quality Improvement - 150x faster privacy-first vocabulary correction |
 | Developer Config File | Medium | 📋 **Planned** | Developer Experience - JSON config with UI sync |
 | Audio Ducking | High | 📋 **Planned** | Recording Quality - reduce background audio interference |
 | Fn Key Support | High | ✅ **Completed** | Accessibility - more hotkey options |

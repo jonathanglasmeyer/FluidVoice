@@ -7,6 +7,11 @@ final class SemanticCorrectionService {
     private let mlxService = MLXCorrectionService()
     private let keychainService: KeychainServiceProtocol
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "SemanticCorrection")
+    private lazy var fastVocabularyCorrector: FastVocabularyCorrector = {
+        let corrector = FastVocabularyCorrector()
+        corrector.load(glossary: VocabularySettings.getGlossary())
+        return corrector
+    }()
     
     // Chunking configuration for 32k context window
     // 32k tokens ≈ 24k words (0.75 ratio) ≈ 120k chars
@@ -19,27 +24,58 @@ final class SemanticCorrectionService {
     }
 
     func correct(text: String, providerUsed: TranscriptionProvider) async -> String {
+        // Always run Fast Vocabulary Correction first (privacy-first, instant)
+        logger.infoDev("Running fast vocabulary correction")
+        let correctedText = correctWithFastVocabulary(text: text)
+        
+        // Then check for additional semantic correction modes
         let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
         let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
 
         switch mode {
-        case .off:
-            return text
+        case .off, .fastVocabulary:
+            return correctedText
         case .localMLX:
             // Allow local MLX correction regardless of STT provider
-            logger.info("Running local MLX correction")
-            return await correctLocallyWithMLX(text: text)
+            logger.infoDev("Running local MLX correction")
+            return await correctLocallyWithMLX(text: correctedText)
         case .cloud:
             switch providerUsed {
             case .openai:
-                logger.info("Running cloud correction: OpenAI")
-                return await correctWithOpenAI(text: text)
+                logger.infoDev("Running cloud correction: OpenAI")
+                return await correctWithOpenAI(text: correctedText)
             case .gemini:
-                logger.info("Running cloud correction: Gemini")
-                return await correctWithGemini(text: text)
-            case .local, .parakeet: return text // don't send local text to cloud
+                logger.infoDev("Running cloud correction: Gemini")
+                return await correctWithGemini(text: correctedText)
+            case .local, .parakeet: return correctedText // don't send local text to cloud
             }
         }
+    }
+
+    // MARK: - Fast Vocabulary (Privacy-First)
+    private func correctWithFastVocabulary(text: String) -> String {
+        let totalStartTime = DispatchTime.now()
+        
+        // Reload glossary if it has changed
+        let loadStartTime = DispatchTime.now()
+        fastVocabularyCorrector.load(glossary: VocabularySettings.getGlossary())
+        let loadElapsed = Double(DispatchTime.now().uptimeNanoseconds - loadStartTime.uptimeNanoseconds) / 1_000_000
+        
+        let correctionStartTime = DispatchTime.now()
+        let corrected = fastVocabularyCorrector.correct(text, maxTimeMs: 30)
+        let correctionElapsed = Double(DispatchTime.now().uptimeNanoseconds - correctionStartTime.uptimeNanoseconds) / 1_000_000
+        
+        let totalElapsed = Double(DispatchTime.now().uptimeNanoseconds - totalStartTime.uptimeNanoseconds) / 1_000_000
+        
+        logger.infoDev("Fast vocabulary timing: config load \(String(format: "%.1f", loadElapsed))ms, correction \(String(format: "%.1f", correctionElapsed))ms, total \(String(format: "%.1f", totalElapsed))ms")
+        
+        if corrected != text {
+            logger.infoDev("Fast vocabulary correction applied changes")
+        } else {
+            logger.infoDev("Fast vocabulary correction made no changes")
+        }
+        
+        return corrected
     }
 
     // MARK: - Local (MLX)
