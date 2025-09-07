@@ -14,6 +14,11 @@ final class ParakeetDaemon {
     private var consecutiveFailures = 0
     private var lastHealthyTime = Date()
     
+    // Connection pooling optimization
+    private var lastPingTime = Date.distantPast
+    private var lastPingResult = false
+    private var isCurrentlyTranscribing = false
+    
     /// Shared daemon instance
     static let shared = ParakeetDaemon()
     
@@ -108,6 +113,10 @@ final class ParakeetDaemon {
             throw ParakeetDaemonError.daemonNotReady
         }
         
+        // Mark as transcribing to skip unnecessary pings
+        isCurrentlyTranscribing = true
+        defer { isCurrentlyTranscribing = false }
+        
         do {
             let request = ["pcm_path": pcmFilePath]
             let response = try await sendCommand(request)
@@ -137,15 +146,56 @@ final class ParakeetDaemon {
         }
     }
     
-    /// Check if daemon is alive
+    /// Check if daemon is alive (optimized with caching)
     func ping() async throws -> Bool {
         guard isReady else { return false }
         
+        // Fast path: Skip ping if recently successful transcription or recent ping
+        let now = Date()
+        let timeSinceLastPing = now.timeIntervalSince(lastPingTime)
+        
+        // Skip ping if:
+        // 1. Currently transcribing (daemon is obviously alive)
+        // 2. Recent successful ping (within 5 seconds)
+        // 3. Recent successful transcription (within 10 seconds) 
+        if isCurrentlyTranscribing {
+            logger.infoDev("🚀 Skipping ping - currently transcribing (daemon alive)")
+            return true
+        }
+        
+        if lastPingResult && timeSinceLastPing < 5.0 {
+            logger.infoDev("🚀 Using cached ping result (\(String(format: "%.1f", timeSinceLastPing))s ago)")
+            return true
+        }
+        
+        let timeSinceLastSuccess = now.timeIntervalSince(lastHealthyTime)
+        if timeSinceLastSuccess < 10.0 && consecutiveFailures == 0 {
+            logger.infoDev("🚀 Skipping ping - recent successful transcription (\(String(format: "%.1f", timeSinceLastSuccess))s ago)")
+            return true
+        }
+        
+        // Slow path: Actually ping daemon
+        logger.infoDev("🔍 Performing actual daemon ping")
         do {
             let response = try await sendCommand(["command": "ping"])
-            return response["status"] as? String == "pong"
+            let isAlive = response["status"] as? String == "pong"
+            
+            // Cache result
+            lastPingTime = now
+            lastPingResult = isAlive
+            
+            if isAlive {
+                recordSuccess()
+            } else {
+                recordFailure()
+            }
+            
+            return isAlive
         } catch {
             logger.warning("Ping failed: \(error.localizedDescription)")
+            lastPingTime = now
+            lastPingResult = false
+            recordFailure()
             return false
         }
     }

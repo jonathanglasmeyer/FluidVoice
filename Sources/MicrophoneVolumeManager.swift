@@ -10,6 +10,7 @@ class MicrophoneVolumeManager: ObservableObject {
     private var originalVolume: Float32?
     private var audioDeviceID: AudioDeviceID?
     private var isVolumeBoosted = false
+    private let deviceManager = AudioDeviceManager.shared
     
     private init() {}
     
@@ -20,7 +21,7 @@ class MicrophoneVolumeManager: ObservableObject {
         guard !isVolumeBoosted else { return true }
         
         do {
-            let deviceID = try await getDefaultInputDevice()
+            let deviceID = try deviceManager.getSelectedInputDevice()
             let currentVolume = try await getInputVolume(deviceID: deviceID)
             
             // Store original volume and device for restoration
@@ -31,6 +32,8 @@ class MicrophoneVolumeManager: ObservableObject {
             let success = try await setInputVolume(deviceID: deviceID, volume: 1.0)
             if success {
                 isVolumeBoosted = true
+                let deviceName = deviceManager.getDeviceName(deviceID: deviceID) ?? "Unknown"
+                Logger.microphoneVolume.infoDev("✅ Boosted volume for device: '\(deviceName)' (ID: \(deviceID))")
             }
             
             return success
@@ -63,7 +66,7 @@ class MicrophoneVolumeManager: ObservableObject {
     /// Check if microphone volume control is available
     func isVolumeControlAvailable() async -> Bool {
         do {
-            let deviceID = try await getDefaultInputDevice()
+            let deviceID = try deviceManager.getSelectedInputDevice()
             return try await hasVolumeControl(deviceID: deviceID)
         } catch {
             return false
@@ -71,34 +74,6 @@ class MicrophoneVolumeManager: ObservableObject {
     }
     
     // MARK: - Core Audio Implementation
-    
-    private func getDefaultInputDevice() async throws -> AudioDeviceID {
-        return try await withCheckedThrowingContinuation { continuation in
-            var deviceID: AudioDeviceID = 0
-            var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-            
-            var address = AudioObjectPropertyAddress(
-                mSelector: kAudioHardwarePropertyDefaultInputDevice,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            
-            let status = AudioObjectGetPropertyData(
-                AudioObjectID(kAudioObjectSystemObject),
-                &address,
-                0,
-                nil,
-                &size,
-                &deviceID
-            )
-            
-            if status == noErr {
-                continuation.resume(returning: deviceID)
-            } else {
-                continuation.resume(throwing: VolumeError.deviceNotFound)
-            }
-        }
-    }
     
     private func hasVolumeControl(deviceID: AudioDeviceID) async throws -> Bool {
         return try await withCheckedThrowingContinuation { continuation in

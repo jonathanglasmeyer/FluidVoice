@@ -11,9 +11,7 @@ import signal
 import traceback
 from pathlib import Path
 
-# Set environment to force offline operation for consistent performance
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
+# Allow online model loading if needed
 os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
 
 try:
@@ -48,10 +46,10 @@ class ParakeetDaemon:
             
             # Try offline loading first for performance
             try:
-                self.model = from_pretrained(self.model_repo, local_files_only=True)
-                print(json.dumps({"status": "ready", "message": "Model loaded offline successfully"}), flush=True)
+                self.model = from_pretrained(self.model_repo)
+                print(json.dumps({"status": "ready", "message": "Model loaded successfully"}), flush=True)
             except Exception as offline_error:
-                print(json.dumps({"status": "warning", "message": f"Offline loading failed: {offline_error}"}), flush=True)
+                print(json.dumps({"status": "warning", "message": f"Model loading failed: {offline_error}"}), flush=True)
                 print(json.dumps({"status": "loading", "message": "Falling back to online loading..."}), flush=True)
                 self.model = from_pretrained(self.model_repo)
                 print(json.dumps({"status": "ready", "message": "Model loaded online successfully"}), flush=True)

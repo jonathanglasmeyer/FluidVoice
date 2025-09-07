@@ -56,6 +56,21 @@ class AudioDeviceManager: ObservableObject {
     }
     
     private func selectBestInputDevice() throws -> AudioDeviceID {
+        // Check if user has selected a specific device in settings
+        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
+        
+        if !selectedMicrophoneID.isEmpty {
+            Logger.audioDeviceManager.infoDev("🎯 User selected device ID: '\(selectedMicrophoneID)'")
+            
+            // Try to find the corresponding AudioDeviceID for the selected AVCaptureDevice
+            if let audioDeviceID = findAudioDeviceID(for: selectedMicrophoneID) {
+                Logger.audioDeviceManager.infoDev("✅ Found corresponding AudioDeviceID: \(audioDeviceID)")
+                return audioDeviceID
+            } else {
+                Logger.audioDeviceManager.infoDev("⚠️ Could not find AudioDeviceID for selected device, falling back to system default")
+            }
+        }
+        
         // Get system default device
         var systemDefaultID: AudioDeviceID = 0
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
@@ -168,6 +183,79 @@ class AudioDeviceManager: ObservableObject {
         }
         
         return builtInDevice ?? usbDevice
+    }
+    
+    /// Convert AVCaptureDevice uniqueID to AudioDeviceID by matching device names
+    private func findAudioDeviceID(for captureDeviceID: String) -> AudioDeviceID? {
+        // First try to find the AVCaptureDevice to get its name
+        let availableDevices = getAllAvailableDevices()
+        guard let targetDevice = availableDevices.first(where: { $0.uniqueID == captureDeviceID }) else {
+            Logger.audioDeviceManager.infoDev("⚠️ Could not find AVCaptureDevice with uniqueID: '\(captureDeviceID)'")
+            return nil
+        }
+        
+        let targetName = targetDevice.localizedName
+        Logger.audioDeviceManager.infoDev("🔍 Looking for AudioDeviceID matching AVCaptureDevice: '\(targetName)'")
+        
+        // Get all audio devices
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        
+        var size: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size
+        )
+        
+        guard status == noErr else {
+            Logger.audioDeviceManager.infoDev("⚠️ Failed to get audio devices size")
+            return nil
+        }
+        
+        let deviceCount = Int(size) / MemoryLayout<AudioDeviceID>.size
+        var devices = [AudioDeviceID](repeating: 0, count: deviceCount)
+        
+        status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &size,
+            &devices
+        )
+        
+        guard status == noErr else {
+            Logger.audioDeviceManager.infoDev("⚠️ Failed to get audio devices")
+            return nil
+        }
+        
+        // Search for matching device by name
+        for deviceID in devices {
+            guard hasInputChannels(deviceID: deviceID) else { continue }
+            
+            if let audioDeviceName = getDeviceName(deviceID: deviceID) {
+                // Try exact name match first
+                if audioDeviceName == targetName {
+                    Logger.audioDeviceManager.infoDev("✅ Found exact match: '\(audioDeviceName)' -> AudioDeviceID: \(deviceID)")
+                    return deviceID
+                }
+                
+                // Try partial name match (some devices may have slightly different names)
+                if audioDeviceName.contains(targetName) || targetName.contains(audioDeviceName) {
+                    Logger.audioDeviceManager.infoDev("✅ Found partial match: '\(audioDeviceName)' -> AudioDeviceID: \(deviceID)")
+                    return deviceID
+                }
+            }
+        }
+        
+        Logger.audioDeviceManager.infoDev("⚠️ No AudioDeviceID found matching AVCaptureDevice: '\(targetName)'")
+        return nil
     }
     
     private func isValidInputDevice(deviceID: AudioDeviceID) -> Bool {

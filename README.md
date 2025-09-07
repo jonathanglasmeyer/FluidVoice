@@ -33,10 +33,15 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 - **Instant response** - Models preloaded and ready
 - **Real-time feel** - Near-zero latency for short audio clips
 
-## Features
+## Features & Development
+
 ### Local Transcription
 - **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB) - Supports 50+ languages with seamless detection
 - **Parakeet v3**: 25 European languages, daemon mode, auto-detection
+
+### Documentation
+- **Features**: See [`docs/features/`](docs/features/) for planned features and [`docs/features/done/`](docs/features/done/) for completed implementations
+- **Bugs**: See [`docs/bugs/`](docs/bugs/) for known issues and [`docs/bugs/done/`](docs/bugs/done/) for resolved bugs
 
 ## Legacy Features (Will Be Removed)
 - **Window-based recording**: Recording window interface (disable "Express Mode" in settings)
