@@ -55,7 +55,7 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 ```bash
 git clone https://github.com/mazdak/FluidVoice.git
 cd FluidVoice
-source .build-config && fv-build
+./build-dev.sh
 cp -r FluidVoice-dev.app /Applications/FluidVoice.app
 ```
 
