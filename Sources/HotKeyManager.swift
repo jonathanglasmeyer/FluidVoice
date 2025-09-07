@@ -10,8 +10,9 @@ class HotKeyManager {
     // Fn key dual-mode state
     private enum FnKeyState {
         case idle
-        case tapPending
-        case holdRecording
+        case tapPending      // Just pressed, timer running to detect tap vs hold
+        case holdRecording   // Timer expired, in push-to-talk mode
+        case toggleRecording // Quick tap detected, recording until next tap
     }
     
     private var fnKeyState: FnKeyState = .idle
@@ -90,20 +91,43 @@ class HotKeyManager {
         let fnPressed = event.modifierFlags.contains(.function)
         
         if fnPressed && fnKeyState == .idle {
-            // Fn key pressed - start recording immediately
+            // Fn key pressed - start recording and timer to detect tap vs hold
             fnKeyState = .tapPending
+            startTapTimer()
             onHotKeyPressed()
-            Logger.app.infoDev("Fn key pressed - recording started")
-        } else if !fnPressed && fnKeyState != .idle {
-            // Fn key released - stop recording immediately  
+            Logger.app.infoDev("Fn key pressed - recording started, detecting tap vs hold")
+            
+        } else if fnPressed && fnKeyState == .toggleRecording {
+            // Another tap while in toggle mode - stop recording
+            fnKeyState = .idle
+            cancelTapTimer()
+            onHotKeyPressed()
+            Logger.app.infoDev("Fn key tapped again - stopping toggle recording")
+            
+        } else if !fnPressed && fnKeyState == .tapPending {
+            // Key released - check if timer is still running to determine tap vs hold
+            if fnKeyTimer != nil {
+                // Timer still running = QUICK TAP
+                cancelTapTimer()
+                fnKeyState = .toggleRecording
+                Logger.app.infoDev("Fn key quick tap detected - entering toggle recording mode")
+            } else {
+                // Timer already expired = it was actually a HOLD
+                fnKeyState = .idle
+                onHotKeyPressed()
+                Logger.app.infoDev("Fn key hold released - stopping recording")
+            }
+            
+        } else if !fnPressed && fnKeyState == .holdRecording {
+            // Released during confirmed hold mode = PUSH-TO-TALK stop
             fnKeyState = .idle
             onHotKeyPressed()
-            Logger.app.infoDev("Fn key released - recording stopped")
+            Logger.app.infoDev("Fn key hold released - stopping recording")
         }
     }
     
     private func startTapTimer() {
-        fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { [weak self] _ in
+        fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
             self?.handleTapTimerExpired()
         }
     }
@@ -114,12 +138,10 @@ class HotKeyManager {
     }
     
     private func handleTapTimerExpired() {
-        if fnKeyState == .tapPending {
-            fnKeyState = .holdRecording
-            // DON'T call onHotKeyPressed again - already called on press for immediate response
-            Logger.app.infoDev("Fn key switched to hold mode (recording already started)")
-        }
+        // Timer expired - just clear the timer, don't change state
+        // State will be determined on key release based on whether timer is still running
         fnKeyTimer = nil
+        Logger.app.infoDev("Fn key timer expired - will be treated as hold on release")
     }
     
     private func parseHotkeyString(_ hotkeyString: String) -> (Key?, NSEvent.ModifierFlags) {
