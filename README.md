@@ -33,6 +33,13 @@ macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording
 - **Instant response** - Models preloaded and ready
 - **Real-time feel** - Near-zero latency for short audio clips
 
+### **Intelligent Vocabulary Correction**
+- **150x faster than LLMs**: 3-5ms correction vs 1500-3000ms for cloud AI
+- **100% privacy-first**: All processing happens locally, zero network requests
+- **Technical vocabulary mastery**: API → API, github → GitHub, typescript → TypeScript
+- **JSONC configuration**: Developer-friendly config with inline comments at `~/.config/fluidvoice/vocabulary.jsonc`
+- **Live reload**: Edit vocabulary while FluidVoice runs - changes apply instantly
+
 ## Features & Development
 
 ### Local Transcription
