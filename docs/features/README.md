@@ -6,7 +6,7 @@
 - **[Audio Ducking During Recording](audio-ducking-feature.md)** - Automatically reduce background audio (Spotify, etc.) during voice recording
 - **[Miniwindow Recording Indicator](miniwindow-recording-indicator.md)** - Small floating window with waveform during recording (WhisperFlow-inspired)
 - **[Fn Key Hotkey Support](fn-key-feature.md)** - Enable Function key combinations for global shortcuts 
-- **[Model Architecture Simplification](model-cleanup-feature.md)** - Remove legacy multi-provider complexity, focus on WhisperKit only
+- **[Model Architecture Simplification](model-cleanup-feature.md)** - Simplify to Parakeet-only transcription for speed advantage and privacy-first approach
 
 ## ✅ Completed Features
 
@@ -27,7 +27,7 @@
 | Developer Config File | Medium | 📋 **Planned** | Developer Experience - JSON config with UI sync |
 | Audio Ducking | High | 📋 **Planned** | Recording Quality - reduce background audio interference |
 | Fn Key Support | High | 📋 **Planned** | Accessibility - more hotkey options |
-| Model Cleanup | High | 📋 **Planned** | Technical Debt - simplify codebase |
+| Model Cleanup | High | 📋 **Planned** | UX Critical - Parakeet-only for speed advantage (100ms vs 600ms) |
 | Performance Metrics & Language Detection | High | ✅ **Completed** | Quality Critical - German transcription + benchmarking |
 | Model Preloading | High | ✅ **Completed** | UX Critical - eliminates worst user experience |
 | WhisperKit Preload System | High | ✅ **Completed** | Performance - app-idle preloading with warmup |

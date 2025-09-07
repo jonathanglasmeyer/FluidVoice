@@ -1,44 +1,60 @@
 # Model Architecture Simplification Plan
 
 **Date**: 2025-09-04  
-**Status**: Planning  
+**Status**: Planning → **Updated Strategy**  
 **Priority**: High  
-**Goal**: Streamline FluidVoice to WhisperKit-only, removing MLX/Parakeet complexity
+**Goal**: ~~Streamline FluidVoice to WhisperKit-only~~ **NEW: Focus on Parakeet-only for speed advantage**
 
-## Current State Analysis
+## Strategy Update (2025-09-07)
 
-### Model Services (BEFORE)
-- **WhisperKit** (CoreML) - Local transcription ✅ Keep
-- **Parakeet/MLX** - Apple Silicon transcription ❌ Remove  
-- **MLX-LM** - Semantic correction ❌ Remove
-- **OpenAI/Anthropic APIs** - Cloud transcription ✅ Keep (minimal)
+**Key Insight**: Parakeet's ~100ms latency vs WhisperKit's ~600ms creates fundamentally different UX
+- Enables natural usage for 2-3 word phrases
+- Transforms from "tool" to "natural input method"  
+- Speed advantage outweighs complexity concerns for core privacy-first approach
 
-### Files to Remove (33 files affected)
+### Model Services (REVISED)
+- **Parakeet/MLX** - Apple Silicon transcription ✅ **Primary Choice** (speed advantage)
+- **WhisperKit** (CoreML) - Local transcription ❌ Remove (slower)
+- **OpenAI/Anthropic APIs** - Cloud transcription ❌ Remove (privacy violation)
 
-#### Core MLX/Parakeet Files
+### Files to Remove (Revised - WhisperKit & Cloud APIs)
+
+#### WhisperKit Files to Remove
 ```
-Sources/ParakeetService.swift           # 400+ LOC MLX integration
-Sources/MLXCorrectionService.swift      # 300+ LOC semantic correction
-Sources/MLXModelManager.swift           # 500+ LOC model downloads  
-Sources/MLXModelManagementView.swift    # Complex UI for MLX models
-Sources/PythonDetector.swift            # Python environment detection
-```
-
-#### Python Integration
-```
-Sources/parakeet_transcribe_pcm.py      # MLX transcription script
-Sources/mlx_semantic_correct.py         # MLX correction script
-Sources/Resources/pyproject.toml        # Python dependencies
-Sources/Resources/uv.lock              # UV lockfile
-test_semantic_correction.py            # Standalone test
+Sources/WhisperKitService.swift         # Remove slower transcription
+# WhisperKit UI components in Settings
+# WhisperKit model management
 ```
 
-#### Supporting Infrastructure  
+#### Cloud API Files to Remove  
 ```
-Sources/UvBootstrap.swift              # UV package manager
-Sources/SemanticCorrectionService.swift # LLM orchestration
-Sources/SemanticCorrectionTypes.swift   # MLX-related types
-Sources/AppSetupHelper.swift           # MLX setup code (partial)
+Sources/OpenAIService.swift             # Privacy violation
+Sources/AnthropicService.swift          # Privacy violation
+# API key management UI
+# Cloud transcription options
+```
+
+#### Python Integration (Keep - Required for Parakeet)
+```
+Sources/parakeet_transcribe_pcm.py      # ✅ Keep - Core Parakeet script
+Sources/Resources/pyproject.toml        # ✅ Keep - Parakeet dependencies  
+Sources/Resources/uv.lock              # ✅ Keep - UV lockfile
+```
+
+#### Remove Semantic Correction (Separate Feature)
+```
+Sources/mlx_semantic_correct.py         # ❌ Remove - separate from transcription
+Sources/SemanticCorrectionService.swift # ❌ Remove - LLM orchestration
+Sources/SemanticCorrectionTypes.swift   # ❌ Remove - correction types
+test_semantic_correction.py            # ❌ Remove - standalone test
+```
+
+#### Supporting Infrastructure (Keep Core Parakeet)
+```
+Sources/UvBootstrap.swift              # ✅ Keep - UV package manager for Parakeet
+Sources/PythonDetector.swift            # ✅ Keep - Python environment for Parakeet  
+Sources/ParakeetService.swift           # ✅ Keep - Core transcription
+Sources/AppSetupHelper.swift           # ✅ Keep - Parakeet setup code
 ```
 
 #### Test Files (11 files)

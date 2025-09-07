@@ -106,9 +106,15 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
   # Code sign if identity available
   if [[ -n "$CODE_SIGN_IDENTITY" ]]; then
     echo "🔐 Code signing development bundle..."
-    codesign -s "$CODE_SIGN_IDENTITY" "$APP_BUNDLE" 2>/dev/null || {
-      echo "⚠️  Code signing failed, but bundle created"
-    }
+    if [ -f "FluidVoice.entitlements" ]; then
+      codesign -s "$CODE_SIGN_IDENTITY" --force --options=runtime --timestamp --entitlements FluidVoice.entitlements "$APP_BUNDLE" 2>/dev/null || {
+        echo "⚠️  Code signing with entitlements failed, but bundle created"
+      }
+    else
+      codesign -s "$CODE_SIGN_IDENTITY" "$APP_BUNDLE" 2>/dev/null || {
+        echo "⚠️  Code signing failed, but bundle created"
+      }
+    fi
   fi
   
   END_TIME=$(date +%s)

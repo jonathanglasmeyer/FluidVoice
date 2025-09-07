@@ -7,6 +7,16 @@ class HotKeyManager {
     private var fnKeyMonitor: Any?
     private let onHotKeyPressed: () -> Void
     
+    // Fn key dual-mode state
+    private enum FnKeyState {
+        case idle
+        case tapPending
+        case holdRecording
+    }
+    
+    private var fnKeyState: FnKeyState = .idle
+    private var fnKeyTimer: Timer?
+    
     init(onHotKeyPressed: @escaping () -> Void) {
         self.onHotKeyPressed = onHotKeyPressed
         setupObservers()
@@ -39,6 +49,7 @@ class HotKeyManager {
         
         if hotkeyString == "Fn" {
             setupFnKeyMonitor()
+            Logger.app.infoDev("Fn-only mode activated - normal hotkey disabled")
         } else {
             // Parse the hotkey string and set up new hotkey
             let (key, modifiers) = parseHotkeyString(hotkeyString)
@@ -48,6 +59,9 @@ class HotKeyManager {
                 hotKey?.keyDownHandler = { [weak self] in
                     self?.onHotKeyPressed()
                 }
+                Logger.app.infoDev("Normal hotkey activated: \(hotkeyString)")
+            } else {
+                Logger.app.infoDev("Failed to parse hotkey: \(hotkeyString)")
             }
         }
     }
@@ -58,15 +72,54 @@ class HotKeyManager {
             NSEvent.removeMonitor(monitor)
             fnKeyMonitor = nil
         }
+        fnKeyTimer?.invalidate()
+        fnKeyTimer = nil
+        fnKeyState = .idle
     }
     
     private func setupFnKeyMonitor() {
         fnKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
-            if event.keyCode == 63 && event.modifierFlags.contains(.function) {
-                self?.onHotKeyPressed()
+            if event.keyCode == 63 {
+                self?.handleFnKeyEvent(event)
             }
         }
         Logger.app.infoDev("Fn key monitoring activated")
+    }
+    
+    private func handleFnKeyEvent(_ event: NSEvent) {
+        let fnPressed = event.modifierFlags.contains(.function)
+        
+        if fnPressed && fnKeyState == .idle {
+            // Fn key pressed - start recording immediately
+            fnKeyState = .tapPending
+            onHotKeyPressed()
+            Logger.app.infoDev("Fn key pressed - recording started")
+        } else if !fnPressed && fnKeyState != .idle {
+            // Fn key released - stop recording immediately  
+            fnKeyState = .idle
+            onHotKeyPressed()
+            Logger.app.infoDev("Fn key released - recording stopped")
+        }
+    }
+    
+    private func startTapTimer() {
+        fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { [weak self] _ in
+            self?.handleTapTimerExpired()
+        }
+    }
+    
+    private func cancelTapTimer() {
+        fnKeyTimer?.invalidate()
+        fnKeyTimer = nil
+    }
+    
+    private func handleTapTimerExpired() {
+        if fnKeyState == .tapPending {
+            fnKeyState = .holdRecording
+            // DON'T call onHotKeyPressed again - already called on press for immediate response
+            Logger.app.infoDev("Fn key switched to hold mode (recording already started)")
+        }
+        fnKeyTimer = nil
     }
     
     private func parseHotkeyString(_ hotkeyString: String) -> (Key?, NSEvent.ModifierFlags) {

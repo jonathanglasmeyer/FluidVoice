@@ -3,6 +3,7 @@ import SwiftData
 import AppKit
 import HotKey
 import ServiceManagement
+import AVFoundation
 import os.log
 
 @main
@@ -61,20 +62,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // SmartPasteTestWindow removed for debugging
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        print("🚀 FluidVoice starting up...") // STARTUP DEBUG
-        print("🔍 Bundle ID: \(Bundle.main.bundleIdentifier ?? "nil")") // DEBUG BUNDLE ID
         Logger.app.infoDev("🚀 FluidVoice starting up...")
-        Logger.app.infoDev("📋 Session Marker: =================================")
         
         // Skip UI initialization in test environment
         let isTestEnvironment = NSClassFromString("XCTestCase") != nil
         if isTestEnvironment {
-            print("❌ Test environment detected - skipping UI initialization") // STARTUP DEBUG
             Logger.app.infoDev("Test environment detected - skipping UI initialization")
             return
         }
         
-        print("🖥️ UI initialization started") // STARTUP DEBUG  
         Logger.app.infoDev("🖥️ UI initialization started")
         
         // Initialize DataManager first
@@ -241,7 +237,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 Logger.app.infoDev("🎙️ Attempting to start recording...")
                 
-                // Check permission first
+                // Check permission first - debug both sources
+                let liveStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+                Logger.app.infoDev("🔍 LIVE TCC Status: \(liveStatus.rawValue) (\(liveStatus))")
+                Logger.app.infoDev("🔍 AudioRecorder.hasPermission: \(recorder.hasPermission)")
+                
                 if !recorder.hasPermission {
                     Logger.app.errorDev("❌ No microphone permission - background recording not possible")
                     return

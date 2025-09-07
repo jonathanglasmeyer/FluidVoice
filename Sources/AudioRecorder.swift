@@ -170,6 +170,7 @@ class AudioRecorder: NSObject, ObservableObject {
     
     func checkMicrophonePermission() {
         let permissionStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        Logger.audioRecorder.infoDev("🔍 checkMicrophonePermission: \(permissionStatus) (rawValue: \(permissionStatus.rawValue))")
         
         switch permissionStatus {
         case .authorized:
@@ -177,16 +178,24 @@ class AudioRecorder: NSObject, ObservableObject {
                 self.hasPermission = true
             }
         case .denied, .restricted:
-            DispatchQueue.main.async {
-                self.hasPermission = false
+            Logger.audioRecorder.infoDev("⚠️ Microphone permission denied/restricted - attempting re-request in case TCC entry was lost")
+            // Try to request permission again - could be due to TCC reset or missing entry
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                Logger.audioRecorder.infoDev("🔍 Re-permission request result: \(granted)")
+                DispatchQueue.main.async {
+                    self?.hasPermission = granted
+                }
             }
         case .notDetermined:
+            Logger.audioRecorder.infoDev("🔄 Requesting microphone permission...")
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                Logger.audioRecorder.infoDev("🔍 Permission request result: \(granted)")
                 DispatchQueue.main.async {
                     self?.hasPermission = granted
                 }
             }
         @unknown default:
+            Logger.audioRecorder.infoDev("⚠️ Unknown permission status: \(permissionStatus)")
             DispatchQueue.main.async {
                 self.hasPermission = false
             }

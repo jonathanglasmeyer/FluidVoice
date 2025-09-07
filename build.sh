@@ -266,20 +266,12 @@ fi
 # Make executable
 chmod +x FluidVoice.app/Contents/MacOS/FluidVoice
 
-# Create entitlements file for hardened runtime
-echo "Creating entitlements for hardened runtime..."
-cat >FluidVoice.entitlements <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.device.audio-input</key>
-    <true/>
-    <key>com.apple.security.network.client</key>
-    <true/>
-</dict>
-</plist>
-EOF
+# Use existing entitlements file
+if [ ! -f "FluidVoice.entitlements" ]; then
+  echo "❌ FluidVoice.entitlements not found - required for hardened runtime"
+  exit 1
+fi
+echo "🔐 Using existing FluidVoice.entitlements for hardened runtime..."
 
 # Function to sign the app with a given identity
 sign_app() {
@@ -333,8 +325,7 @@ else
   echo "💡 To sign the app, get a Developer ID certificate from Apple Developer Portal."
 fi
 
-# Clean up entitlements file
-rm -f FluidVoice.entitlements
+# Keep entitlements file (shared with dev builds)
 
 # Notarization (requires code signing first)
 if [ "$NOTARIZE" = true ]; then

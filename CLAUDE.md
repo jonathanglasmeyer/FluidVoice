@@ -13,6 +13,7 @@
 - Debug Audio: `defaults write com.fluidvoice.app enableDebugAudioMode -bool true`
 - **ALWAYS use `.infoDev()` not `.info()`** - Logger.app.infoDev(), Logger.audioInspector.infoDev()
 - Privacy Logs: Device names show as `<private>` - use `sudo log stream` for real names
+- **AI niemals BashOutput für Logs:** User copy/pastet relevante Logs - spart Context Window
 
 ## AI Testing Grenzen
 
@@ -20,6 +21,15 @@
 **User macht:** Hotkeys, UI, Audio/Speech, Permissions, End-to-End Testing
 
 **AI darf NICHT:** User-Interaktionen simulieren, UI testen, Mikrofon/Speech validieren
+
+## TCC Permissions & Attribution
+
+**macOS Attribution Chain:** TCC prüft "responsible process" für Permissions  
+**Problem:** Terminal → FluidVoice = Terminal braucht auch die Permission  
+**Lösung A:** Aus Finder starten (Doppelklick FluidVoice-dev.app)  
+**Lösung B:** Terminal Mikrofonerlaubnis geben (System Settings → Privacy → Microphone)
+
+**Dev Workflow:** Wenn du über Terminal startest, muss dein Terminal (Ghostty/iTerm/etc.) auch Mikrofon-Permission haben, sonst `AVAuthorizationStatus: .denied`
 
 ## Permission Reset 
 
