@@ -1,37 +1,38 @@
-# Model Architecture Simplification Plan
+# Privacy-First Architecture Cleanup
 
-**Date**: 2025-09-04  
-**Status**: Planning → **Updated Strategy**  
-**Priority**: High  
-**Goal**: ~~Streamline FluidVoice to WhisperKit-only~~ **NEW: Focus on Parakeet-only for speed advantage**
+**Date**: 2025-09-04 → **Updated**: 2025-09-07  
+**Status**: **Refined Strategy**  
+**Priority**: Medium (downgraded from High)  
+**Goal**: Remove cloud APIs while preserving local transcription flexibility
 
 ## Strategy Update (2025-09-07)
 
-**Key Insight**: Parakeet's ~100ms latency vs WhisperKit's ~600ms creates fundamentally different UX
-- Enables natural usage for 2-3 word phrases
-- Transforms from "tool" to "natural input method"  
-- Speed advantage outweighs complexity concerns for core privacy-first approach
+**Core Principle**: Privacy-first means **local-only transcription**
+**Key Insight**: Keep architectural flexibility for future AI improvements
 
-### Model Services (REVISED)
-- **Parakeet/MLX** - Apple Silicon transcription ✅ **Primary Choice** (speed advantage)
-- **WhisperKit** (CoreML) - Local transcription ❌ Remove (slower)
-- **OpenAI/Anthropic APIs** - Cloud transcription ❌ Remove (privacy violation)
+### Model Services (FINAL)
+- **Parakeet/MLX** - Apple Silicon transcription ✅ **Keep** (speed advantage ~100ms)
+- **WhisperKit** (CoreML) - Local transcription ✅ **Keep** (future-proofing)  
+- **OpenAI/Gemini APIs** - Cloud transcription ❌ **Remove** (privacy violation)
 
-### Files to Remove (Revised - WhisperKit & Cloud APIs)
-
-#### WhisperKit Files to Remove
-```
-Sources/WhisperKitService.swift         # Remove slower transcription
-# WhisperKit UI components in Settings
-# WhisperKit model management
-```
+### Files to Remove (Cloud APIs Only)
 
 #### Cloud API Files to Remove  
 ```
-Sources/OpenAIService.swift             # Privacy violation
-Sources/AnthropicService.swift          # Privacy violation
-# API key management UI
-# Cloud transcription options
+# OpenAI/Gemini API integration (privacy violation)
+- API transcription calls in SpeechToTextService.swift
+- API key management UI in SettingsView.swift
+- Keychain storage for API keys
+- Cloud transcription options in UI
+```
+
+#### Keep Local Transcription
+```
+Sources/LocalWhisperService.swift       # ✅ Keep - CoreML transcription
+Sources/ParakeetService.swift           # ✅ Keep - MLX transcription  
+Sources/PreloadManager.swift            # ✅ Keep - model caching
+# WhisperKit UI components in Settings   # ✅ Keep - user choice
+# Parakeet UI components in Settings     # ✅ Keep - user choice
 ```
 
 #### Python Integration (Keep - Required for Parakeet)
