@@ -86,6 +86,34 @@ final class VocabularyConfigManager {
             return
         }
         
+        // For new files, create with comprehensive JSONC documentation
+        let isNewFile = !fileManager.fileExists(atPath: vocabularyConfigURL.path)
+        
+        if isNewFile {
+            createDocumentedJSONCTemplate(glossary)
+        } else {
+            // For existing files, save as regular JSON to preserve existing format
+            saveAsJSON(glossary)
+        }
+    }
+    
+    private func createDocumentedJSONCTemplate(_ glossary: VocabularyGlossary) {
+        // Use .jsonc extension for the documented template
+        let jsoncURL = configDirectory.appendingPathComponent("vocabulary.jsonc")
+        
+        let jsoncContent = createJSONCTemplate(glossary)
+        
+        do {
+            try jsoncContent.write(to: jsoncURL, atomically: true, encoding: .utf8)
+            logger.infoDev("Created documented vocabulary config template at \(jsoncURL.path)")
+        } catch {
+            logger.error("Failed to create JSONC template: \(error.localizedDescription)")
+            // Fallback to regular JSON
+            saveAsJSON(glossary)
+        }
+    }
+    
+    private func saveAsJSON(_ glossary: VocabularyGlossary) {
         // Convert to file format
         let config = VocabularyConfig(
             version: "1.0",
@@ -104,31 +132,187 @@ final class VocabularyConfigManager {
         }
     }
     
+    private func createJSONCTemplate(_ glossary: VocabularyGlossary) -> String {
+        return """
+{
+  // FluidVoice Vocabulary Correction Configuration
+  // Location: ~/.config/fluidvoice/vocabulary.jsonc
+  // 
+  // ============================================================================
+  // SUPPORTED PATTERN TYPES (as of 2025-09-08)
+  // ============================================================================
+  //
+  // ✅ FULLY SUPPORTED:
+  //
+  // 1. Single-word corrections:
+  //    Input: "api"       → Output: "API"
+  //    Input: "github"    → Output: "GitHub"
+  //    Input: "typescript" → Output: "TypeScript"
+  //
+  // 2. Single-word with punctuation:
+  //    Input: "api."      → Output: "API"
+  //    Input: "github!"   → Output: "GitHub"
+  //    Input: "api?"      → Output: "API"
+  //    (Automatically handles: . ! ? , ; : ' " ) )
+  //
+  // 3. Multi-word patterns (FIXED 2025-09-08):
+  //    Input: "claude m d"    → Output: "CLAUDE.md"
+  //    Input: "read me"       → Output: "README"  
+  //    Input: "docker compose" → Output: "docker-compose"
+  //
+  // 4. Multi-word with punctuation:
+  //    Input: "claude m d."   → Output: "CLAUDE.md"
+  //    Input: "read me!"      → Output: "README"
+  //
+  // ⚠️  LIMITATIONS:
+  //
+  // - Letter-spacing patterns like "i o s" → "iOS" may not work reliably
+  // - Very long multi-word patterns may have issues
+  // - Complex punctuation within words needs testing
+  //
+  // ============================================================================
+  // CONFIGURATION STRUCTURE
+  // ============================================================================
+  
+  "version": "1.0",
+  
+  // VOCABULARY: Maps canonical terms to their speech recognition aliases
+  // Format: "CANONICAL_OUTPUT": ["spoken_alias_1", "spoken_alias_2", ...]
+  "vocabulary": {
+    
+    // ✅ Single-word technical terms (acronyms, tools, etc.)
+    "API": ["api"],
+    "GitHub": ["github"],  
+    "OAuth": ["oauth"],
+    "TypeScript": ["typescript"],
+    "SSH": ["ssh"],
+    "URL": ["url"],
+    "SQL": ["sql"],
+    "JWT": ["jwt"],
+    "JSON": ["json"],
+    "HTML": ["html"],
+    "CSS": ["css"],
+    "HTTP": ["http"],
+    "HTTPS": ["https"],
+    "CLI": ["cli"],
+    
+    // ✅ Multi-word patterns (works after 2025-09-08 fix)
+    "CLAUDE.md": ["claude m d"],
+    "README": ["read me"],
+    "docker-compose": ["docker compose"],
+    "Node.js": ["node j s"],
+    
+    // Additional useful patterns  
+    "webpack": ["web pack"],
+    "VS Code": ["v s code", "visual studio code"],
+    "npm": ["n p m"]
+    
+    // ADD YOUR CUSTOM TERMS HERE:
+    // "YourTerm": ["how it sounds when spoken"],
+    // "Custom.config": ["custom config"],
+    // "MyProject": ["my project"]
+  },
+  
+  // RULES: Define how each canonical term should be formatted
+  "rules": {
+    
+    // "upper": CONVERTS TO UPPERCASE (good for acronyms)
+    "API": { "caseMode": "upper" },
+    "SSH": { "caseMode": "upper" },
+    "URL": { "caseMode": "upper" },
+    "SQL": { "caseMode": "upper" },
+    "JWT": { "caseMode": "upper" },
+    "JSON": { "caseMode": "upper" },
+    "HTML": { "caseMode": "upper" },
+    "CSS": { "caseMode": "upper" },
+    "HTTP": { "caseMode": "upper" },
+    "HTTPS": { "caseMode": "upper" },
+    "CLI": { "caseMode": "upper" },
+    
+    // "mixed": Uses PascalCase/CamelCase (good for proper names)
+    "GitHub": { "caseMode": "mixed" },
+    "OAuth": { "caseMode": "mixed" },
+    "TypeScript": { "caseMode": "mixed" },
+    "Node.js": { "caseMode": "mixed" },
+    "VS Code": { "caseMode": "mixed" },
+    
+    // "exact": Uses the exact spelling as defined in vocabulary (good for files/commands)
+    "CLAUDE.md": { "caseMode": "exact" },
+    "README": { "caseMode": "exact" },
+    "docker-compose": { "caseMode": "exact" },
+    "webpack": { "caseMode": "exact" },
+    "npm": { "caseMode": "exact" }
+    
+    // CASE MODE OPTIONS:
+    // - "upper": FULL UPPERCASE
+    // - "mixed": PascalCase/Mixed Case (as written in vocabulary key)  
+    // - "exact": Exact case as specified in vocabulary key
+    // - "camel": camelCase (first letter lowercase)
+  }
+  
+  // ============================================================================
+  // USAGE EXAMPLES
+  // ============================================================================
+  //
+  // Speech Input          → Corrected Output
+  // ──────────────────────────────────────────────────────────────────────────
+  // "call the api"        → "call the API"
+  // "use github for this" → "use GitHub for this"  
+  // "edit claude m d"     → "edit CLAUDE.md"
+  // "check the read me"   → "check the README"
+  // "run docker compose" → "run docker-compose"
+  // "api."               → "API"
+  // "claude m d!"        → "CLAUDE.md"
+  //
+  // ============================================================================
+  // TROUBLESHOOTING
+  // ============================================================================
+  //
+  // If corrections don't work:
+  // 1. Check that your spoken phrase exactly matches the alias
+  // 2. Test without punctuation first  
+  // 3. Ensure your canonical term is in both "vocabulary" and "rules" sections
+  // 4. Restart FluidVoice to reload configuration
+  // 5. Check logs: /usr/bin/log stream --predicate 'subsystem == "com.fluidvoice.app"' --info
+  //
+  // For support: https://github.com/FluidVoice/FluidVoice/issues
+}
+"""
+    }
+    
     private func createDefaultGlossary() -> VocabularyGlossary {
         let defaultMap: [String: [String]] = [
-            "API": ["a p i", "api"],
-            "GitHub": ["git hub", "github", "git-hub"],
-            "OAuth": ["o auth", "oauth", "o-auth"],
-            "TypeScript": ["type script", "typescript", "type-script"],
-            "CLAUDE.md": ["claude md", "cloutmd", "cloude.md", "claude.md"],
-            "SSH": ["s s h", "ssh"],
-            "URL": ["u r l", "url"],  
-            "SQL": ["s q l", "sql"],
-            "JWT": ["j w t", "jwt"],
-            "JSON": ["j s o n", "json"],
-            "HTML": ["h t m l", "html"],
-            "CSS": ["c s s", "css"],
-            "HTTP": ["h t t p", "http"],
-            "HTTPS": ["h t t p s", "https"],
-            "CLI": ["c l i", "cli"]
+            // ✅ Single-word patterns (fully supported)
+            "API": ["api"],
+            "GitHub": ["github"],
+            "OAuth": ["oauth"],
+            "TypeScript": ["typescript"],
+            "SSH": ["ssh"],
+            "URL": ["url"],  
+            "SQL": ["sql"],
+            "JWT": ["jwt"],
+            "JSON": ["json"],
+            "HTML": ["html"],
+            "CSS": ["css"],
+            "HTTP": ["http"],
+            "HTTPS": ["https"],
+            "CLI": ["cli"],
+            
+            // ✅ Multi-word patterns (supported after 2025-09-08 fix)
+            "CLAUDE.md": ["claude m d"],
+            "README": ["read me"],
+            "docker-compose": ["docker compose"],
+            "Node.js": ["node j s"],
+            
+            // Additional useful patterns
+            "webpack": ["web pack"],
+            "VS Code": ["v s code", "visual studio code"],
+            "npm": ["n p m"]
         ]
         
         let defaultRules: [String: CanonRule] = [
+            // Upper case for acronyms
             "API": CanonRule(caseMode: .upper),
-            "GitHub": CanonRule(caseMode: .mixed),
-            "OAuth": CanonRule(caseMode: .mixed),
-            "TypeScript": CanonRule(caseMode: .mixed),
-            "CLAUDE.md": CanonRule(caseMode: .exact),
             "SSH": CanonRule(caseMode: .upper),
             "URL": CanonRule(caseMode: .upper),
             "SQL": CanonRule(caseMode: .upper),
@@ -138,7 +322,21 @@ final class VocabularyConfigManager {
             "CSS": CanonRule(caseMode: .upper),
             "HTTP": CanonRule(caseMode: .upper),
             "HTTPS": CanonRule(caseMode: .upper),
-            "CLI": CanonRule(caseMode: .upper)
+            "CLI": CanonRule(caseMode: .upper),
+            
+            // Mixed case for proper names
+            "GitHub": CanonRule(caseMode: .mixed),
+            "OAuth": CanonRule(caseMode: .mixed),
+            "TypeScript": CanonRule(caseMode: .mixed),
+            "Node.js": CanonRule(caseMode: .mixed),
+            "VS Code": CanonRule(caseMode: .mixed),
+            
+            // Exact case for files/commands
+            "CLAUDE.md": CanonRule(caseMode: .exact),
+            "README": CanonRule(caseMode: .exact),
+            "docker-compose": CanonRule(caseMode: .exact),
+            "webpack": CanonRule(caseMode: .exact),
+            "npm": CanonRule(caseMode: .exact)
         ]
         
         return VocabularyGlossary(canonicalMap: defaultMap, rules: defaultRules)

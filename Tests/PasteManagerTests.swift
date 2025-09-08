@@ -214,7 +214,7 @@ class PasteManagerTests: XCTestCase {
             expectation.fulfill()
         }
         
-        pasteManager.pasteWithUserInteraction()
+        pasteManager.pasteWithUserInteraction(text: "test text")
         
         wait(for: [expectation], timeout: 5.0) // Longer timeout for user interaction
     }
@@ -306,7 +306,7 @@ class PasteManagerTests: XCTestCase {
         
         // This should attempt to perform CGEvent paste
         // In test environment, this will likely fail due to permissions, but shouldn't crash
-        XCTAssertNoThrow(pasteManager.pasteToActiveApp())
+        XCTAssertNoThrow(pasteManager.pasteText("test text"))
         
         // Clean up
         UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
@@ -317,7 +317,7 @@ class PasteManagerTests: XCTestCase {
         UserDefaults.standard.set(false, forKey: "enableSmartPaste")
         
         // This should do nothing (just rely on clipboard)
-        XCTAssertNoThrow(pasteManager.pasteToActiveApp())
+        XCTAssertNoThrow(pasteManager.pasteText("test text"))
         
         // Clean up
         UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
@@ -338,7 +338,7 @@ class PasteManagerTests: XCTestCase {
             expectation.fulfill()
         }
         
-        pasteManager.pasteWithUserInteraction()
+        pasteManager.pasteWithUserInteraction(text: "test text")
         
         wait(for: [expectation], timeout: 3.0)
     }
@@ -394,7 +394,7 @@ class PasteManagerTests: XCTestCase {
         // Test that it doesn't crash with various inputs
         XCTAssertNoThrow(pasteManager.smartPaste(into: nil, text: ""))
         XCTAssertNoThrow(pasteManager.smartPaste(into: mockApp, text: "Valid text"))
-        XCTAssertNoThrow(pasteManager.pasteToActiveApp())
+        XCTAssertNoThrow(pasteManager.pasteText("test text"))
     }
     
     // MARK: - Security Tests

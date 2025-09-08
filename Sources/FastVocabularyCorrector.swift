@@ -103,6 +103,7 @@ final class FastVocabularyCorrector {
         
         // Phase 1: Normalization (streaming, O(n))
         let (normalizedText, originalIndices) = normalizeStream(text)
+        logger.infoDev("FastVocabularyCorrector: Input '\(text)' → Normalized '\(normalizedText)'")
         
         if timeExceeded(startTime, maxMs: maxTimeMs / 4) {
             logger.infoDev("FastVocabularyCorrector: timeout during normalization")
@@ -110,7 +111,22 @@ final class FastVocabularyCorrector {
         }
         
         // Phase 2: Multi-Pattern Replace (Aho-Corasick, O(n))
-        let matches = scanAhoCorasick(automaton, normalizedText)
+        var matches = scanAhoCorasick(automaton, normalizedText)
+        
+        // TDD: If no matches found, try with punctuation stripped
+        if matches.isEmpty {
+            let strippedText = stripTrailingPunctuation(text)
+            if strippedText != text {
+                let (strippedNormalized, strippedIndices) = normalizeStream(strippedText)
+                let strippedMatches = scanAhoCorasick(automaton, strippedNormalized)
+                if !strippedMatches.isEmpty {
+                    // Use the stripped version for processing
+                    matches = strippedMatches
+                    return applyReplacements(strippedText, matches: filterOverlaps(matches), originalIndices: strippedIndices)
+                }
+            }
+        }
+        
         let filteredMatches = filterOverlaps(matches)
         
         if timeExceeded(startTime, maxMs: maxTimeMs * 3 / 4) {
@@ -137,16 +153,23 @@ final class FastVocabularyCorrector {
         while i < text.endIndex {
             let char = text[i]
             
-            // Letter spacing detection: "a p i" -> "api" 
+            // Letter spacing detection: "a p i" -> "api" (only for single characters)
             if char.isLetter && i < text.index(text.endIndex, offsetBy: -4) {
                 let next1 = text.index(after: i)
                 let next2 = text.index(next1, offsetBy: 1)
                 let next3 = text.index(next2, offsetBy: 1)
                 let next4 = text.index(next3, offsetBy: 1)
                 
+                // Check if this is a single-character letter spacing pattern (e.g., "a p i")
+                // NOT multi-character words (e.g., "claude m d") 
+                let isCurrentCharSingle = i == text.startIndex || !text[text.index(before: i)].isLetter
+                let isNextCharSingle = next4 == text.index(before: text.endIndex) || !text[text.index(after: next4)].isLetter
+                let isMiddleCharSingle = !text[text.index(before: next2)].isLetter && (text.index(after: next2) >= text.endIndex || !text[text.index(after: next2)].isLetter)
+                
                 if next4 < text.endIndex &&
                    text[next1] == " " && text[next2].isLetter &&
-                   text[next3] == " " && text[next4].isLetter {
+                   text[next3] == " " && text[next4].isLetter &&
+                   isCurrentCharSingle && isNextCharSingle && isMiddleCharSingle {
                     // Found "a p i" pattern - collapse to "api"
                     result.append(char)
                     result.append(text[next2])
@@ -173,7 +196,9 @@ final class FastVocabularyCorrector {
             i = text.index(after: i)
         }
         
-        return (result.trimmingCharacters(in: .whitespaces), indices)
+        // Just normalize - don't remove punctuation here as it breaks index mapping
+        let trimmedResult = result.trimmingCharacters(in: .whitespaces)
+        return (trimmedResult, indices)
     }
     
     // MARK: - Phase 2: Aho-Corasick Implementation
@@ -181,15 +206,31 @@ final class FastVocabularyCorrector {
     private func buildAutomaton(from glossary: VocabularyGlossary) -> AhoCorasickAutomaton {
         var patterns: [(pattern: String, canonical: String, priority: Int)] = []
         
+        logger.infoDev("🏗️ Building automaton from \(glossary.canonicalMap.count) canonical terms")
+        
         for (canonical, aliases) in glossary.canonicalMap {
             let priority = canonical.contains(" ") ? 100 : 50 // Multi-word gets higher priority
+            logger.infoDev("🏗️ Processing canonical '\(canonical)' with \(aliases.count) aliases, priority base: \(priority)")
             
             for alias in aliases {
                 let normalized = alias.lowercased().replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
+                logger.infoDev("🏗️   Alias '\(alias)' → normalized '\(normalized)'")
+                
+                // Add the original pattern
                 patterns.append((pattern: normalized, canonical: canonical, priority: priority + normalized.count))
+                logger.infoDev("🏗️   Added pattern: '\(normalized)' → '\(canonical)' (priority: \(priority + normalized.count))")
+                
+                // Add punctuation-tolerant patterns (add common punctuation variants)
+                let commonPunctuation = [".", "!", "?", ",", ";", ":", "'", "\"", ")"]
+                for punct in commonPunctuation {
+                    let punctuatedPattern = normalized + punct
+                    patterns.append((pattern: punctuatedPattern, canonical: canonical, priority: priority + normalized.count + 5)) // Slightly higher priority
+                    logger.infoDev("🏗️   Added punctuated pattern: '\(punctuatedPattern)' → '\(canonical)' (priority: \(priority + normalized.count + 5))")
+                }
             }
         }
         
+        logger.infoDev("🏗️ Total patterns built: \(patterns.count)")
         return AhoCorasickAutomaton(patterns: patterns)
     }
     
@@ -197,12 +238,21 @@ final class FastVocabularyCorrector {
         var matches: [VocabMatch] = []
         let lowercased = text.lowercased()
         
-        for result in automaton.search(in: lowercased) {
+        logger.infoDev("🔍 Scanning text: '\(text)' (lowercased: '\(lowercased)')")
+        
+        // First, search for direct matches
+        let searchResults = automaton.search(in: lowercased)
+        logger.infoDev("🔍 Automaton found \(searchResults.count) raw matches")
+        
+        for result in searchResults {
+            logger.infoDev("🔍   Raw match: '\(lowercased[lowercased.index(lowercased.startIndex, offsetBy: result.startIndex)..<lowercased.index(lowercased.startIndex, offsetBy: result.endIndex)])' → '\(result.canonical)' (priority: \(result.priority))")
+            
             let canonical = result.canonical
             let caseMode = glossary.rules[canonical]?.caseMode ?? .mixed
             
             // Check word boundaries for safety
             if requiresWordBoundaries(canonical) && !hasWordBoundaries(text, start: result.startIndex, end: result.endIndex) {
+                logger.infoDev("🔍   Rejected due to word boundaries: '\(canonical)'")
                 continue
             }
             
@@ -214,9 +264,22 @@ final class FastVocabularyCorrector {
                 caseMode: caseMode
             )
             matches.append(match)
+            logger.infoDev("🔍   Accepted match: '\(canonical)' at [\(result.startIndex)-\(result.endIndex)]")
         }
         
+        logger.infoDev("🔍 Final matches: \(matches.count)")
+        
         return matches
+    }
+    
+    private func stripTrailingPunctuation(_ text: String) -> String {
+        guard !text.isEmpty else { return text }
+        
+        var result = text.trimmingCharacters(in: .whitespaces)
+        while !result.isEmpty && result.last!.isPunctuation {
+            result = String(result.dropLast())
+        }
+        return result
     }
     
     private func requiresWordBoundaries(_ canonical: String) -> Bool {
@@ -336,6 +399,14 @@ final class AhoCorasickAutomaton {
     func search(in text: String) -> [AhoCorasickResult] {
         var results: [AhoCorasickResult] = []
         
+        // DEBUG: Log search details
+        let logger = Logger(subsystem: "com.fluidvoice.app", category: "AhoCorasick")
+        logger.infoDev("🔍 AhoCorasick searching in: '\(text)'")
+        logger.infoDev("🔍 Checking \(patterns.count) patterns:")
+        for (index, pattern) in patterns.enumerated() {
+            logger.infoDev("🔍   [\(index)] '\(pattern.text)' → '\(pattern.canonical)' (priority: \(pattern.priority))")
+        }
+        
         // Simplified implementation - brute force for now
         // TODO: Implement proper Aho-Corasick with failure links for production
         for pattern in patterns {
@@ -346,6 +417,8 @@ final class AhoCorasickAutomaton {
                     let startIndex = text.distance(from: text.startIndex, to: range.lowerBound)
                     let endIndex = text.distance(from: text.startIndex, to: range.upperBound)
                     
+                    logger.infoDev("🔍 ✅ FOUND: '\(pattern.text)' → '\(pattern.canonical)' at [\(startIndex)-\(endIndex)]")
+                    
                     results.append(AhoCorasickResult(
                         startIndex: startIndex,
                         endIndex: endIndex,
@@ -355,11 +428,13 @@ final class AhoCorasickAutomaton {
                     
                     searchStart = range.upperBound
                 } else {
+                    logger.infoDev("🔍 ❌ Not found: '\(pattern.text)'")
                     break
                 }
             }
         }
         
+        logger.infoDev("🔍 Total matches found: \(results.count)")
         return results
     }
 }
