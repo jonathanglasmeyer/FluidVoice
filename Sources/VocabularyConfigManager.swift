@@ -1,11 +1,16 @@
 import Foundation
 import os.log
+import CryptoKit
 
 // MARK: - File-Based Vocabulary Configuration Manager
 
 final class VocabularyConfigManager {
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "VocabularyConfig")
     private let fileManager = FileManager.default
+    
+    // In-memory cache with SHA256 tracking
+    private var cachedGlossary: VocabularyGlossary?
+    private var cachedFileHash: String?
     
     // Standard XDG config location like VS Code, Git, etc.
     private var configDirectory: URL {
@@ -27,21 +32,49 @@ final class VocabularyConfigManager {
     // MARK: - Config File Operations
     
     func loadGlossary() -> VocabularyGlossary {
-        // Try to load from file first
+        // Check if file exists
+        guard fileManager.fileExists(atPath: vocabularyConfigURL.path) else {
+            // No file exists - create default
+            logger.infoDev("Creating default vocabulary config at \(self.vocabularyConfigURL.path)")
+            let defaultGlossary = createDefaultGlossary()
+            saveToFile(defaultGlossary)
+            return defaultGlossary
+        }
+        
+        // Calculate current file hash
+        let currentHash = calculateFileHash()
+        
+        // Return cached version if hash hasn't changed
+        if let cachedGlossary = cachedGlossary, 
+           let cachedHash = cachedFileHash,
+           currentHash == cachedHash {
+            logger.infoDev("Using cached vocabulary config (hash unchanged: \(String(currentHash.prefix(8)))...)")
+            return cachedGlossary
+        }
+        
+        // Hash changed or no cache - load from file
         if let glossary = loadFromFile() {
-            logger.infoDev("Loaded vocabulary config from \(self.vocabularyConfigURL.path)")
+            // Update cache
+            self.cachedGlossary = glossary
+            self.cachedFileHash = currentHash
+            logger.infoDev("Loaded vocabulary config from file (hash: \(String(currentHash.prefix(8)))...)")
             return glossary
         }
         
-        // Fallback to default + create file
-        logger.infoDev("Creating default vocabulary config at \(self.vocabularyConfigURL.path)")
+        // Fallback to default if file load failed
+        logger.infoDev("Failed to load config file, creating default")
         let defaultGlossary = createDefaultGlossary()
         saveToFile(defaultGlossary)
+        self.cachedGlossary = defaultGlossary
+        self.cachedFileHash = calculateFileHash()
         return defaultGlossary
     }
     
     func saveGlossary(_ glossary: VocabularyGlossary) {
         saveToFile(glossary)
+        // Invalidate cache when saving
+        self.cachedGlossary = nil
+        self.cachedFileHash = nil
     }
     
     private func loadFromFile() -> VocabularyGlossary? {
@@ -396,6 +429,16 @@ final class VocabularyConfigManager {
             .joined(separator: "\n")
         
         return processedString.data(using: .utf8) ?? data
+    }
+    
+    // MARK: - File Hash Calculation
+    
+    private func calculateFileHash() -> String {
+        guard let data = try? Data(contentsOf: vocabularyConfigURL) else {
+            return ""
+        }
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 }
 

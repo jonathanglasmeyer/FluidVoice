@@ -56,7 +56,7 @@ final class SemanticCorrectionService {
     private func correctWithFastVocabulary(text: String) -> String {
         let totalStartTime = DispatchTime.now()
         
-        // Reload glossary if it has changed
+        // Load glossary if it has changed (now with caching)
         let loadStartTime = DispatchTime.now()
         fastVocabularyCorrector.load(glossary: VocabularySettings.getGlossary())
         let loadElapsed = Double(DispatchTime.now().uptimeNanoseconds - loadStartTime.uptimeNanoseconds) / 1_000_000
