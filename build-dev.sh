@@ -41,6 +41,13 @@ fi
 export SWIFT_BUILD_CACHE_PATH="${SWIFT_BUILD_CACHE_PATH:-$HOME/.swift-build-cache}"
 mkdir -p "$SWIFT_BUILD_CACHE_PATH"
 
+# Clean any existing app bundle to ensure fresh build
+APP_BUNDLE="FluidVoice-dev.app"
+if [ -d "$APP_BUNDLE" ]; then
+  echo "🧹 Cleaning existing app bundle..."
+  rm -rf "$APP_BUNDLE"
+fi
+
 # Build with optimizations for development
 echo "📦 Building with cache at $SWIFT_BUILD_CACHE_PATH..."
 
@@ -57,8 +64,6 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
   echo "📦 Creating development app bundle..."
   
   # Create app bundle structure
-  APP_BUNDLE="FluidVoice-dev.app"
-  rm -rf "$APP_BUNDLE"
   mkdir -p "$APP_BUNDLE/Contents/MacOS"
   mkdir -p "$APP_BUNDLE/Contents/Resources"
   

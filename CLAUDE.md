@@ -48,6 +48,10 @@
 **Bundle ID:** com.fluidvoice.app  
 **Nie:** `swift build` verwenden
 
+**🚨 CRITICAL BUILD RULE:** `./build-dev.sh` cleans FluidVoice-dev.app BEFORE building  
+**Grund:** Prevents running stale builds when recent build failed (lines 46-49), ensures fresh binary  
+**AI Must:** Always use `./build-dev.sh` (never manual swift build), cleanup happens upfront
+
 ## Dependencies
 
 **Core:** SwiftUI+AppKit, AVFoundation, Alamofire, WhisperKit, HotKey, KeychainAccess  
