@@ -98,3 +98,14 @@
 - `fv-test` - Run tests 
 - `fv-clean` - Clean build artifacts
 - `source .build-config` - Load build environment
+
+## Vocabulary Mapping Requests
+
+**Einfaches Format:** Schreib einfach `falsch -> richtig` und AI fügt es zur vocabulary.jsonc hinzu.
+
+**Examples:**
+- `cloud code -> Claude Code` 
+- `ClaudeMD -> CLAUDE.md`
+- `i o s -> iOS`
+
+**AI Action:** Automatisch zur `~/.config/fluidvoice/vocabulary.jsonc` hinzufügen mit passender Case-Mode und Kategorie.
