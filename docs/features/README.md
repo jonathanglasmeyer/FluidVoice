@@ -18,22 +18,6 @@
 - **[WhisperKit Preload System](done/whisperkit-preload-system.md)** ✅ **DONE** - App-idle preloading with warmup cycles
 - **[Hybrid Build System](done/hybrid-build-system.md)** ✅ **DONE** - 4.7x faster development builds
 
-## 📋 Feature Status
-
-| Feature | Priority | Status | Impact |
-|---------|----------|--------|--------|
-| Express Mode | High | ✅ **Completed** | UX Innovation - Revolutionary background recording |
-| Parakeet v3 Multilingual | High | ✅ **Completed** | Performance Critical - 25 languages + auto-detection |
-| Fast Vocabulary Correction | High | ✅ **Completed** | Quality Improvement - 150x faster privacy-first vocabulary correction |
-| Developer Config File | Medium | 📋 **Planned** | Developer Experience - JSON config with UI sync |
-| Audio Ducking | High | 📋 **Planned** | Recording Quality - reduce background audio interference |
-| Fn Key Support | High | ✅ **Completed** | Accessibility - more hotkey options |
-| Model Cleanup | High | 📋 **Planned** | UX Critical - Parakeet-only for speed advantage (100ms vs 600ms) |
-| Performance Metrics & Language Detection | High | ✅ **Completed** | Quality Critical - German transcription + benchmarking |
-| Model Preloading | High | ✅ **Completed** | UX Critical - eliminates worst user experience |
-| WhisperKit Preload System | High | ✅ **Completed** | Performance - app-idle preloading with warmup |
-| Hybrid Build System | High | ✅ **Completed** | Development - 4.7x faster builds |
-| Miniwindow Indicator | Medium | 📋 **Planned** | UX Polish - elegant recording feedback |
 
 ## 🎯 Feature Guidelines
 
