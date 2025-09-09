@@ -6,6 +6,7 @@ import os.log
 /// Shows volume-responsive scaling animation during Express Mode recording
 class MiniRecordingIndicator: NSObject, ObservableObject {
     private var window: NSWindow?
+    private var frameObserverToken: Any?
     @Published var isVisible: Bool = false
     @Published var audioLevel: Float = 0.0
     
@@ -50,12 +51,13 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     private func createAndShowWindow() {
         let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         
-        // Position at bottom center of screen - window exactly matches container size
+        // Position at bottom center of screen - pixel-snapped for crisp rendering
         let windowSize = NSSize(width: Self.containerWidth, 
                                height: Self.containerHeight)
-        let windowX = screenFrame.midX - windowSize.width / 2
-        let windowY = screenFrame.minY + Self.windowPadding
-        let windowFrame = NSRect(x: windowX, y: windowY, width: windowSize.width, height: windowSize.height)
+        let windowX = round(screenFrame.midX - windowSize.width / 2)
+        let windowY = round(screenFrame.minY + Self.windowPadding)
+        let windowFrame = NSRect(x: windowX, y: windowY, 
+                                width: round(windowSize.width), height: round(windowSize.height))
         
         window = NSWindow(
             contentRect: windowFrame,
@@ -72,45 +74,65 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         window?.ignoresMouseEvents = true
         window?.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
         
-        // Container with roundness + shadow (layer-based) - NOT the effect view
-        let container = NSView()
-        container.wantsLayer = true
-        container.layer?.cornerRadius = 16
-        container.layer?.masksToBounds = true
-        // Round, soft shadow
-        container.layer?.shadowOpacity = 0.35
-        container.layer?.shadowRadius = 18
-        container.layer?.shadowOffset = CGSize(width: 0, height: -2)
-        container.layer?.shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: windowSize),
-                                            cornerWidth: 16, cornerHeight: 16, transform: nil)
+        // Shadow container (outer) - handles shadow without clipping
+        let shadowContainer = NSView()
+        shadowContainer.wantsLayer = true
+        shadowContainer.layer?.shadowOpacity = 0.22
+        shadowContainer.layer?.shadowRadius = 10
+        shadowContainer.layer?.shadowOffset = CGSize(width: 0, height: -0.5)
+        window?.contentView = shadowContainer
         
-        window?.contentView = container
+        // Clip view (inner) - handles rounded corners with clipping
+        let clipView = NSView(frame: shadowContainer.bounds)
+        clipView.autoresizingMask = [.width, .height]
+        clipView.wantsLayer = true
+        clipView.layer?.cornerRadius = 16
+        clipView.layer?.masksToBounds = true
+        shadowContainer.addSubview(clipView)
         
-        // NSVisualEffectView WITHOUT any layer properties - fills container
-        let effectView = NSVisualEffectView(frame: container.bounds)
+        // Shadow path follows window size
+        shadowContainer.postsFrameChangedNotifications = true
+        frameObserverToken = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
+                                              object: shadowContainer, queue: .main) { _ in
+            shadowContainer.layer?.shadowPath = CGPath(roundedRect: shadowContainer.bounds,
+                                                      cornerWidth: 16, cornerHeight: 16, transform: nil)
+        }
+        shadowContainer.layer?.shadowPath = CGPath(roundedRect: shadowContainer.bounds,
+                                                   cornerWidth: 16, cornerHeight: 16, transform: nil)
+        
+        // NSVisualEffectView WITHOUT any layer properties - fills clip view
+        let effectView = NSVisualEffectView(frame: clipView.bounds)
         effectView.autoresizingMask = [.width, .height]
-        effectView.material = .popover  // Good balance of clarity and blur
+        
+        // Detect dark mode for appropriate material selection
+        let isDarkMode = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        
+        // Material selection with appearance and accessibility consideration
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
+            effectView.material = .windowBackground  // Fallback for reduced transparency
+            effectView.appearance = NSAppearance(named: isDarkMode ? .vibrantDark : .vibrantLight)
+        } else {
+            effectView.material = isDarkMode ? .hudWindow : .underWindowBackground  // clearer Light, richer Dark
+            effectView.appearance = NSAppearance(named: isDarkMode ? .vibrantDark : .vibrantLight)
+        }
         effectView.blendingMode = .behindWindow
         effectView.state = .active
+        effectView.isEmphasized = false  // lets chrome handle the depth
         // CRITICAL: No wantsLayer, no cornerRadius/masksToBounds on effectView!
-        container.addSubview(effectView)
+        clipView.addSubview(effectView)
         
-        // SwiftUI content on top (without background)
+        // SwiftUI content with GlassChrome styling
         let contentView = MiniIndicatorView(indicator: self)
-            .padding(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-            )
+            .glassChrome()
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         
-        container.addSubview(hostingView)
+        clipView.addSubview(hostingView)
         NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: container.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            hostingView.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: clipView.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: clipView.bottomAnchor)
         ])
         
         // Fade in animation
@@ -129,6 +151,12 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     private func hideWindow() {
         guard let window = window else { return }
         
+        // Clean up frame observer
+        if let token = frameObserverToken {
+            NotificationCenter.default.removeObserver(token)
+            frameObserverToken = nil
+        }
+        
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -140,6 +168,10 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     }
     
     deinit {
+        if let token = frameObserverToken {
+            NotificationCenter.default.removeObserver(token)
+            frameObserverToken = nil
+        }
         window?.orderOut(nil)
         window = nil
     }
@@ -148,6 +180,7 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
 /// SwiftUI view for the glassmorphism waveform indicator  
 struct MiniIndicatorView: View {
     @ObservedObject var indicator: MiniRecordingIndicator
+    @Environment(\.colorScheme) private var colorScheme
     
     private let barCount = 5
     private let barWidth: CGFloat = 3
@@ -161,9 +194,10 @@ struct MiniIndicatorView: View {
                 RoundedRectangle(cornerRadius: barWidth/2)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.9), Color.white.opacity(0.6)],
-                            startPoint: .top,
-                            endPoint: .bottom
+                            colors: colorScheme == .dark
+                                ? [Color.white.opacity(0.95), Color.white.opacity(0.75)]
+                                : [Color.black.opacity(0.75), Color.black.opacity(0.55)],
+                            startPoint: .top, endPoint: .bottom
                         )
                     )
                     .frame(width: barWidth, height: calculateBarHeight(for: index))
@@ -177,6 +211,65 @@ struct MiniIndicatorView: View {
         let multiplier = pattern[index]
         return minBarHeight + (maxBarHeight - minBarHeight) * multiplier
     }
+}
+
+// MARK: - Refined Glass Chrome with Narrow Edge Gloss
+struct GlassChrome: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    private var dark: Bool { scheme == .dark }
+    private let r: CGFloat = 16
+
+    func body(content: Content) -> some View {
+        content
+            .padding(16)
+
+            // minimal tinting (enhanced for reduced transparency)
+            .background(
+                RoundedRectangle(cornerRadius: r, style: .continuous)
+                    .fill(dark ? Color.black.opacity(0.12) : 
+                         (NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 
+                          Color.black.opacity(0.08) : Color.black.opacity(0.02)))
+            )
+
+            // very narrow top gloss (8-10 pt)
+            .overlay(alignment: .top) {
+                RoundedRectangle(cornerRadius: r, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(dark ? 0.11 : 0.17),
+                                .clear
+                            ],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .frame(height: 9)         // narrower zone
+                    .blur(radius: 0.4)
+            }
+
+            // crisp inner bottom edge
+            .overlay(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: r, style: .continuous)
+                    .stroke(Color.black.opacity(dark ? 0.22 : 0.12), lineWidth: 1)
+                    .blur(radius: 0.6)
+                    .offset(y: 0.6)
+                    .mask(
+                        LinearGradient(colors: [.clear, .black],
+                                       startPoint: .center, endPoint: .bottom)
+                        .mask(RoundedRectangle(cornerRadius: r, style: .continuous))
+                    )
+            }
+
+            // fine hairline around
+            .overlay(
+                RoundedRectangle(cornerRadius: r, style: .continuous)
+                    .stroke(Color.white.opacity(dark ? 0.10 : 0.14), lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func glassChrome() -> some View { modifier(GlassChrome()) }
 }
 
 // MARK: - Logger Extension

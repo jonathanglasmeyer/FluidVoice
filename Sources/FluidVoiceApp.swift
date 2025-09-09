@@ -90,9 +90,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Start background model preloading for instant transcription
+        Logger.app.infoDev("🔄 Starting PreloadManager...")
         PreloadManager.shared.startIdlePreload()
+        Logger.app.infoDev("✅ PreloadManager started")
         
         // Initialize MLX model cache at startup (async, non-blocking)
+        Logger.app.infoDev("🔄 Starting MLX Task...")
         Task {
             await MLXModelManager.shared.refreshModelList()
             
@@ -116,16 +119,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Setup app configuration
-        AppSetupHelper.setupApp()
+        Logger.app.infoDev("🔄 Starting AppSetupHelper...")
+        // TEMPORARY: Skip AppSetupHelper to avoid startup hang
+        // AppSetupHelper.setupApp()
+        Logger.app.infoDev("⚠️ AppSetupHelper SKIPPED (temporary fix)")
         
         // Initialize audio recorder (pre-warming happens in init)
+        Logger.app.infoDev("🔄 Initializing AudioRecorder...")
         audioRecorder = AudioRecorder()
+        Logger.app.infoDev("✅ AudioRecorder initialized")
         
         // Connect volume monitoring to mini indicator
+        Logger.app.infoDev("🔄 Setting up volume monitoring...")
         setupVolumeMonitoring()
+        Logger.app.infoDev("✅ Volume monitoring setup completed")
         
         // Create menu bar item
+        Logger.app.infoDev("🔄 Creating menu bar item...")
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        Logger.app.infoDev("✅ Menu bar item created")
         
         if let button = statusItem?.button {
             button.image = AppSetupHelper.createMenuBarIcon()
@@ -141,14 +153,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
         
         statusItem?.menu = menu
+        Logger.app.infoDev("✅ Menu setup completed")
         
         // Set up global hotkey and keyboard monitoring
-        print("🔥 Setting up HotKeyManager...") // HOTKEY DEBUG
+        Logger.app.infoDev("🔄 Setting up HotKeyManager...")
         hotKeyManager = HotKeyManager { [weak self] in
             self?.handleHotkey()
         }
-        print("✅ HotKeyManager initialized") // HOTKEY DEBUG
+        Logger.app.infoDev("✅ HotKeyManager initialized")
+        
+        Logger.app.infoDev("🔄 Initializing KeyboardEventHandler...")
         keyboardEventHandler = KeyboardEventHandler()
+        Logger.app.infoDev("✅ KeyboardEventHandler initialized")
         
         // Listen for screen configuration changes
         NotificationCenter.default.addObserver(

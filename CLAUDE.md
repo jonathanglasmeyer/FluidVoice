@@ -17,7 +17,8 @@
   - Examples: Logger.app.infoDev(), Logger.audioInspector.infoDev()
   - **RULE: If AI adds ANY logger.info() it MUST be logger.infoDev()**
 - Privacy Logs: Device names show as `<private>` - use `sudo log stream` for real names
-- **AI niemals BashOutput für Logs:** User copy/pastet relevante Logs - spart Context Window
+- **🚨 AI niemals BashOutput für Logs:** User copy/pastet relevante Logs - spart Context Window  
+- **🚨 BashOutput HARD LIMIT:** Max 10-20 lines output - niemals full log dumps (Context Bloat!)
 
 ## AI Testing Grenzen
 
