@@ -1,6 +1,8 @@
 import Foundation
 import AVFoundation
 import Combine
+import Accelerate
+import AppKit
 import os.log
 
 class AudioRecorder: NSObject, ObservableObject {
@@ -8,19 +10,22 @@ class AudioRecorder: NSObject, ObservableObject {
     @Published var audioLevel: Float = 0.0
     @Published var hasPermission = false
     
-    private var captureSession: AVCaptureSession?
-    private var audioInput: AVCaptureDeviceInput?
-    private var audioOutput: AVCaptureAudioFileOutput?
     private var recordingURL: URL?
     private var levelUpdateTimer: Timer?
     private let volumeManager = MicrophoneVolumeManager.shared
     private let deviceManager = AudioDeviceManager.shared
     
-    // Pre-warmed session for instant recording start
-    private var prewarmedSession: AVCaptureSession?
-    private var prewarmedInput: AVCaptureDeviceInput?
-    private var prewarmedOutput: AVCaptureAudioFileOutput?
-    private var lastSelectedDeviceID: String = ""
+    // Unified AVAudioEngine for both recording and level monitoring
+    private var audioEngine = AVAudioEngine()
+    private var audioFile: AVAudioFile?
+    private var audioFormat: AVAudioFormat?
+    
+    // Pre-warmed AVAudioEngine for instant recording start
+    private var isEnginePrewarmed: Bool = false
+    
+    // Real-time level monitoring throttling
+    private var lastLevelUpdateTime: CFTimeInterval = 0
+    private let levelUpdateInterval: CFTimeInterval = 1.0/60.0 // 60fps
     
     override init() {
         super.init()
@@ -28,10 +33,9 @@ class AudioRecorder: NSObject, ObservableObject {
         checkMicrophonePermission()
         logSelectedMicrophone()
         
-        // Pre-warm session in background after short delay
+        // Pre-warm AVAudioEngine for optimal latency (background thread, safe implementation)
         Task {
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms delay
-            await prepareSessionInBackground()
+            await prewarmAudioEngine()
         }
     }
     
@@ -39,110 +43,40 @@ class AudioRecorder: NSObject, ObservableObject {
         // AVAudioSession is not needed on macOS
     }
     
-    @MainActor
-    private func prepareSessionInBackground() async {
+    private func prewarmAudioEngine() async {
         guard hasPermission else {
-            Logger.audioRecorder.infoDev("🔧 Skipping session pre-warming - no microphone permission")
+            Logger.audioRecorder.infoDev("🔧 Skipping engine pre-warming - no microphone permission")
             return
         }
         
-        Logger.audioRecorder.infoDev("🔧 Pre-warming capture session in background...")
-        
-        do {
-            let selectedDevice = try await getSelectedDevice()
-            let deviceID = selectedDevice.uniqueID
-            
-            // Only create new session if device changed
-            if deviceID != lastSelectedDeviceID || prewarmedSession == nil {
-                Logger.audioRecorder.infoDev("🔄 Device changed or first time - creating pre-warmed session")
-                
-                // Clean up old session
-                prewarmedSession?.stopRunning()
-                prewarmedSession = nil
-                prewarmedInput = nil
-                prewarmedOutput = nil
-                
-                // Create new pre-warmed session with parallel setup
-                let session = AVCaptureSession()
-                session.beginConfiguration()
-                
-                // Create input and output in parallel
-                async let inputTask: AVCaptureDeviceInput = {
-                    return try AVCaptureDeviceInput(device: selectedDevice)
-                }()
-                async let outputTask: AVCaptureAudioFileOutput = {
-                    return AVCaptureAudioFileOutput()
-                }()
-                
-                let (audioInput, audioOutput) = try await (inputTask, outputTask)
-                
-                guard session.canAddInput(audioInput) && session.canAddOutput(audioOutput) else {
-                    Logger.audioRecorder.error("❌ Cannot add input/output to pre-warmed session")
-                    return
-                }
-                
-                session.addInput(audioInput)
-                session.addOutput(audioOutput)
-                session.commitConfiguration()
-                
-                // Start session in background (this is the expensive 50ms operation)
-                session.startRunning()
-                
-                // Store pre-warmed components
-                self.prewarmedSession = session
-                self.prewarmedInput = audioInput
-                self.prewarmedOutput = audioOutput
-                self.lastSelectedDeviceID = deviceID
-                
-                Logger.audioRecorder.infoDev("✅ Pre-warmed session created and started for device: '\(selectedDevice.localizedName)'")
-            } else {
-                Logger.audioRecorder.infoDev("✅ Pre-warmed session already ready for current device")
-            }
-        } catch {
-            Logger.audioRecorder.error("❌ Failed to pre-warm session: \(error.localizedDescription)")
+        guard !isEnginePrewarmed else {
+            Logger.audioRecorder.infoDev("✅ AVAudioEngine already pre-warmed")
+            return
         }
-    }
-    
-    private func getSelectedDevice() async throws -> AVCaptureDevice {
-        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
         
-        if selectedMicrophoneID.isEmpty {
-            // Use AudioDeviceManager's intelligent selection
-            let selectedDeviceID = try deviceManager.getSelectedInputDevice()
-            let deviceName = deviceManager.getDeviceName(deviceID: selectedDeviceID) ?? "Unknown"
-            
-            // Find corresponding AVCaptureDevice
-            let discoverySession = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            )
-            
-            if let device = discoverySession.devices.first(where: { device in
-                device.localizedName == deviceName || device.localizedName.contains(deviceName) || deviceName.contains(device.localizedName)
-            }) {
-                return device
-            } else {
-                guard let defaultDevice = AVCaptureDevice.default(for: .audio) else {
-                    throw NSError(domain: "AudioRecorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "No default audio device"])
+        Logger.audioRecorder.infoDev("🔧 Pre-warming AVAudioEngine - moving prepare() off main thread...")
+        
+        // Move the potentially blocking prepare() call to a background thread
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                Logger.audioRecorder.infoDev("🔧 Calling audioEngine.prepare() on background thread...")
+                
+                do {
+                    // Prepare the bare engine on background thread
+                    self.audioEngine.prepare()
+                    Logger.audioRecorder.infoDev("✅ audioEngine.prepare() completed successfully")
+                    
+                    DispatchQueue.main.async {
+                        self.isEnginePrewarmed = true
+                        Logger.audioRecorder.infoDev("✅ AVAudioEngine pre-warmed successfully")
+                        continuation.resume()
+                    }
+                } catch {
+                    Logger.audioRecorder.error("❌ audioEngine.prepare() failed: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        continuation.resume()
+                    }
                 }
-                return defaultDevice
-            }
-        } else {
-            // User selected specific device
-            let discoverySession = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            )
-            
-            if let device = discoverySession.devices.first(where: { $0.uniqueID == selectedMicrophoneID }) {
-                return device
-            } else {
-                guard let defaultDevice = AVCaptureDevice.default(for: .audio) else {
-                    throw NSError(domain: "AudioRecorder", code: 1, userInfo: [NSLocalizedDescriptionKey: "No default audio device"])
-                }
-                return defaultDevice
             }
         }
     }
@@ -153,18 +87,7 @@ class AudioRecorder: NSObject, ObservableObject {
         if selectedMicrophoneID.isEmpty {
             Logger.audioRecorder.infoDev("🎯 No specific microphone selected - will use intelligent default")
         } else {
-            // Try to get the device name for better logging
-            let discoverySession = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            )
-            
-            if let device = discoverySession.devices.first(where: { $0.uniqueID == selectedMicrophoneID }) {
-                Logger.audioRecorder.infoDev("🎯 User has selected microphone: '\(device.localizedName)' (ID: \(selectedMicrophoneID))")
-            } else {
-                Logger.audioRecorder.infoDev("🎯 User has selected microphone ID: '\(selectedMicrophoneID)' (device not currently available)")
-            }
+            Logger.audioRecorder.infoDev("🎯 User has selected microphone ID: '\(selectedMicrophoneID)'")
         }
     }
     
@@ -179,7 +102,6 @@ class AudioRecorder: NSObject, ObservableObject {
             }
         case .denied, .restricted:
             Logger.audioRecorder.infoDev("⚠️ Microphone permission denied/restricted - attempting re-request in case TCC entry was lost")
-            // Try to request permission again - could be due to TCC reset or missing entry
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                 Logger.audioRecorder.infoDev("🔍 Re-permission request result: \(granted)")
                 DispatchQueue.main.async {
@@ -211,76 +133,17 @@ class AudioRecorder: NSObject, ObservableObject {
     }
     
     func startRecording() -> Bool {
-        // Check permission first
         guard hasPermission else {
             Logger.audioRecorder.error("❌ startRecording failed: No microphone permission")
             return false
         }
         
-        // Prevent re-entrancy - if already recording, return false
-        guard captureSession == nil else {
-            Logger.audioRecorder.error("❌ startRecording failed: Capture session already exists (not cleaned up)")
-            // Force cleanup and try again
-            forceCleanup()
+        guard !audioEngine.isRunning else {
+            Logger.audioRecorder.error("❌ startRecording failed: Engine already running")
             return false
         }
         
-        // Try to use pre-warmed session first (FAST PATH)
-        if let prewarmedSession = self.prewarmedSession,
-           let prewarmedInput = self.prewarmedInput,
-           let prewarmedOutput = self.prewarmedOutput {
-            
-            Logger.audioRecorder.infoDev("🚀 Using pre-warmed session for instant recording start")
-            
-            let tempPath = FileManager.default.temporaryDirectory
-            let audioFilename = tempPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).m4a")
-            recordingURL = audioFilename
-            
-            // Move pre-warmed session to active session
-            self.captureSession = prewarmedSession
-            self.audioInput = prewarmedInput
-            self.audioOutput = prewarmedOutput
-            
-            // Clear pre-warmed references
-            self.prewarmedSession = nil
-            self.prewarmedInput = nil
-            self.prewarmedOutput = nil
-            
-            Logger.audioRecorder.infoDev("🎬 Starting recording to file: \(audioFilename.lastPathComponent)")
-            
-            // Start recording and volume boost in parallel
-            prewarmedOutput.startRecording(to: audioFilename, outputFileType: .m4a, recordingDelegate: self)
-            
-            // Boost microphone volume if enabled (parallel - no await)
-            if UserDefaults.standard.autoBoostMicrophoneVolume {
-                Task {
-                    await volumeManager.boostMicrophoneVolume()
-                }
-            }
-            
-            // Update recording state
-            if Thread.isMainThread {
-                self.isRecording = true
-                self.startLevelMonitoring()
-            } else {
-                DispatchQueue.main.sync {
-                    self.isRecording = true
-                    self.startLevelMonitoring()
-                }
-            }
-            
-            Logger.audioRecorder.infoDev("✅ Pre-warmed recording started instantly!")
-            
-            // Pre-warm next session in background
-            Task {
-                await prepareSessionInBackground()
-            }
-            
-            return true
-        }
-        
-        // Fallback to old slow path if pre-warming failed
-        Logger.audioRecorder.infoDev("⚠️ Pre-warmed session not available - using slow path")
+        Logger.audioRecorder.infoDev("🚀 Starting unified AVAudioEngine recording + level monitoring")
         
         // Boost microphone volume if enabled
         if UserDefaults.standard.autoBoostMicrophoneVolume {
@@ -291,170 +154,120 @@ class AudioRecorder: NSObject, ObservableObject {
         
         let tempPath = FileManager.default.temporaryDirectory
         let audioFilename = tempPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).m4a")
-        
         recordingURL = audioFilename
         
-        // Get the selected input device
-        let selectedDevice: AVCaptureDevice
-        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
-        
-        if selectedMicrophoneID.isEmpty {
-            // Use system default - get intelligently selected device
-            Logger.audioRecorder.infoDev("🎤 Using system default (intelligent selection)")
-            
-            // Get all available devices
-            let discoverySession = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            )
-            
-            // Use AudioDeviceManager's intelligent selection logic
-            let selectedDeviceID: AudioDeviceID
-            do {
-                selectedDeviceID = try deviceManager.getSelectedInputDevice()
-            } catch {
-                Logger.audioRecorder.error("Failed to get selected input device: \(error.localizedDescription)")
-                return false
-            }
-            
-            let deviceName = deviceManager.getDeviceName(deviceID: selectedDeviceID) ?? "Unknown"
-            Logger.audioRecorder.infoDev("🎤 AudioDeviceManager selected: '\(deviceName)' (ID: \(selectedDeviceID))")
-            
-            // Find corresponding AVCaptureDevice by matching names
-            let matchingDevice = discoverySession.devices.first { device in
-                device.localizedName == deviceName || device.localizedName.contains(deviceName) || deviceName.contains(device.localizedName)
-            }
-            
-            if let device = matchingDevice {
-                selectedDevice = device
-                Logger.audioRecorder.infoDev("✅ Found matching AVCaptureDevice: '\(device.localizedName)'")
-            } else {
-                // Fallback to default device
-                guard let defaultDevice = AVCaptureDevice.default(for: .audio) else {
-                    Logger.audioRecorder.error("No default audio input device available")
-                    return false
-                }
-                selectedDevice = defaultDevice
-                Logger.audioRecorder.infoDev("⚠️ Using AVCaptureDevice default: '\(defaultDevice.localizedName)'")
-            }
-        } else {
-            // User selected specific device
-            let discoverySession = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            )
-            
-            if let device = discoverySession.devices.first(where: { $0.uniqueID == selectedMicrophoneID }) {
-                selectedDevice = device
-                Logger.audioRecorder.infoDev("🎯 Using user-selected device: '\(device.localizedName)'")
-            } else {
-                Logger.audioRecorder.error("Selected microphone device not found: '\(selectedMicrophoneID)' - falling back to default")
-                
-                guard let defaultDevice = AVCaptureDevice.default(for: .audio) else {
-                    Logger.audioRecorder.error("No default audio input device available")
-                    return false
-                }
-                selectedDevice = defaultDevice
-                Logger.audioRecorder.infoDev("⚠️ Falling back to default device: '\(defaultDevice.localizedName)'")
-            }
-        }
-        
-        Logger.audioRecorder.infoDev("🎤 Recording with device: '\(selectedDevice.localizedName)' (ID: \(selectedDevice.uniqueID))")
-        Logger.audioRecorder.infoDev("🔍 Device validated and ready for recording")
-        
         do {
-            Logger.audioRecorder.infoDev("🔧 Creating capture session...")
-            // Create capture session
-            let session = AVCaptureSession()
-            session.beginConfiguration()
+            // Use optimal format for Whisper (16kHz, mono, 16-bit)
+            let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+            audioFormat = format
             
-            Logger.audioRecorder.infoDev("🔧 Creating audio input...")
-            // Add audio input
-            let audioInput = try AVCaptureDeviceInput(device: selectedDevice)
-            Logger.audioRecorder.infoDev("✅ Audio input created successfully")
+            // Create audio file for recording
+            audioFile = try AVAudioFile(forWriting: audioFilename, settings: format.settings)
             
-            guard session.canAddInput(audioInput) else {
-                Logger.audioRecorder.error("❌ Cannot add audio input to capture session")
-                return false
-            }
-            session.addInput(audioInput)
-            Logger.audioRecorder.infoDev("✅ Audio input added to session")
+            let inputNode = audioEngine.inputNode
+            let inputFormat = inputNode.outputFormat(forBus: 0)
             
-            Logger.audioRecorder.infoDev("🔧 Creating audio file output...")
-            // Add audio file output
-            let audioOutput = AVCaptureAudioFileOutput()
-            guard session.canAddOutput(audioOutput) else {
-                Logger.audioRecorder.error("❌ Cannot add audio output to capture session")
-                return false
-            }
-            session.addOutput(audioOutput)
-            Logger.audioRecorder.infoDev("✅ Audio output added to session")
-            
-            session.commitConfiguration()
-            Logger.audioRecorder.infoDev("✅ Session configuration committed")
-            
-            // Store references
-            self.captureSession = session
-            self.audioInput = audioInput
-            self.audioOutput = audioOutput
-            
-            Logger.audioRecorder.infoDev("▶️ Starting capture session first...")
-            // CRITICAL: Start capture session BEFORE starting recording
-            session.startRunning()
-            Logger.audioRecorder.infoDev("✅ Capture session started")
-            
-            Logger.audioRecorder.infoDev("🎬 Starting recording to file: \(audioFilename.lastPathComponent)")
-            Logger.audioRecorder.infoDev("🔍 File path: \(audioFilename.path)")
-            
-            // Check if we can write to the temp directory
-            let tempDir = audioFilename.deletingLastPathComponent()
-            if !FileManager.default.isWritableFile(atPath: tempDir.path) {
-                Logger.audioRecorder.error("❌ Cannot write to temp directory: \(tempDir.path)")
-                return false
-            }
-            Logger.audioRecorder.infoDev("✅ Temp directory is writable")
-            
-            // Start recording to file (session must be running first!)
-            audioOutput.startRecording(to: audioFilename, outputFileType: .m4a, recordingDelegate: self)
-            Logger.audioRecorder.infoDev("✅ startRecording() call completed")
-            
-            // Update @Published properties on main thread
-            Logger.audioRecorder.infoDev("🔄 Updating recording state...")
-            if Thread.isMainThread {
-                self.isRecording = true
-                self.startLevelMonitoring()
-            } else {
-                DispatchQueue.main.sync {
-                    self.isRecording = true
-                    self.startLevelMonitoring()
+            // Install tap for BOTH recording AND level monitoring
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, time in
+                guard let self = self, self.isRecording else { return }
+                
+                // 1. Convert and write to file for recording
+                do {
+                    // Convert from input format (e.g., 44.1kHz stereo) to our target format (16kHz mono)
+                    guard let converter = AVAudioConverter(from: inputFormat, to: format) else {
+                        Logger.audioRecorder.error("❌ Could not create audio format converter")
+                        return
+                    }
+                    
+                    // Calculate output buffer size based on sample rate conversion
+                    let ratio = format.sampleRate / inputFormat.sampleRate
+                    let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
+                    
+                    guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: outputFrameCount) else {
+                        Logger.audioRecorder.error("❌ Could not create output buffer")
+                        return
+                    }
+                    
+                    var error: NSError?
+                    let status = converter.convert(to: outputBuffer, error: &error) { _, outStatus in
+                        outStatus.pointee = AVAudioConverterInputStatus.haveData
+                        return buffer
+                    }
+                    
+                    if status == .error {
+                        Logger.audioRecorder.error("❌ Audio conversion failed: \(error?.localizedDescription ?? "unknown error")")
+                        return
+                    }
+                    
+                    // Write the converted buffer to file
+                    try self.audioFile?.write(from: outputBuffer)
+                } catch {
+                    Logger.audioRecorder.error("❌ Failed to write audio buffer: \(error.localizedDescription)")
+                }
+                
+                // 2. Calculate real-time audio levels
+                guard let channelData = buffer.floatChannelData?[0] else { return }
+                let frameCount = Int(buffer.frameLength)
+                
+                // Calculate RMS using vDSP
+                var rms: Float = 0.0
+                vDSP_rmsqv(channelData, 1, &rms, vDSP_Length(frameCount))
+                
+                // Convert to normalized level (0.0-1.0)
+                let db = 20 * log10(max(rms, 0.000001)) // Avoid log(0)
+                let normalizedLevel = max(0.0, min(1.0, (db + 60) / 60)) // -60dB to 0dB range
+                
+                // Throttle UI updates to 60fps
+                let now = CACurrentMediaTime()
+                if now - self.lastLevelUpdateTime >= self.levelUpdateInterval {
+                    DispatchQueue.main.async {
+                        self.audioLevel = normalizedLevel
+                        // MiniIndicator will be updated via Combine publisher
+                    }
+                    self.lastLevelUpdateTime = now
                 }
             }
-            Logger.audioRecorder.infoDev("✅ Recording state updated - recording is now active")
+            
+            // Use pre-warmed engine or prepare on-demand
+            if !isEnginePrewarmed {
+                Logger.audioRecorder.infoDev("⚠️ Engine not pre-warmed, preparing now...")
+                audioEngine.prepare()
+            } else {
+                Logger.audioRecorder.infoDev("✅ Using pre-warmed engine for optimal latency")
+            }
+            
+            try audioEngine.start()
+            
+            DispatchQueue.main.async {
+                self.isRecording = true
+            }
+            
+            Logger.audioRecorder.infoDev("✅ Unified AVAudioEngine recording started: \(audioFilename.lastPathComponent)")
+            
             return true
+            
         } catch {
-            Logger.audioRecorder.error("❌ Failed to start recording: \(error.localizedDescription)")
-            Logger.audioRecorder.error("❌ Error details: \(error)")
-            
-            // Cleanup on failure
-            forceCleanup()
-            
-            // Recheck permissions if recording failed
-            checkMicrophonePermission()
+            Logger.audioRecorder.error("❌ Failed to start AVAudioEngine recording: \(error.localizedDescription)")
             return false
         }
     }
     
-    
     func stopRecording() -> URL? {
-        audioOutput?.stopRecording()
-        captureSession?.stopRunning()
+        guard isRecording else { return nil }
         
-        // Cleanup references
-        captureSession = nil
-        audioInput = nil
-        audioOutput = nil
+        Logger.audioRecorder.infoDev("🛑 Stopping AVAudioEngine recording...")
+        
+        // Stop engine and remove tap
+        audioEngine.inputNode.removeTap(onBus: 0)
+        audioEngine.stop()
+        
+        // Close audio file
+        audioFile = nil
+        
+        DispatchQueue.main.async {
+            self.isRecording = false
+            self.audioLevel = 0.0
+        }
         
         // Restore microphone volume if it was boosted
         if UserDefaults.standard.autoBoostMicrophoneVolume {
@@ -463,157 +276,40 @@ class AudioRecorder: NSObject, ObservableObject {
             }
         }
         
-        // Update @Published properties on main thread
-        if Thread.isMainThread {
-            self.isRecording = false
-            self.stopLevelMonitoring()
-        } else {
-            DispatchQueue.main.sync {
-                self.isRecording = false
-                self.stopLevelMonitoring()
-            }
-        }
-        
+        Logger.audioRecorder.infoDev("✅ Recording stopped successfully")
         return recordingURL
     }
     
-    func cleanupRecording() {
-        guard let url = recordingURL else { return }
+    private func forceCleanup() {
+        Logger.audioRecorder.infoDev("🧹 Force cleanup - stopping everything")
         
-        // Restore microphone volume if it was boosted (in case of cancellation/cleanup)
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
-            Task {
-                await volumeManager.restoreMicrophoneVolume()
-            }
+        if audioEngine.isRunning {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            audioEngine.stop()
         }
+        
+        audioFile = nil
+        
+        DispatchQueue.main.async {
+            self.isRecording = false
+            self.audioLevel = 0.0
+        }
+    }
+    
+    private func cleanupRecording() {
+        guard let url = recordingURL else { return }
         
         do {
             try FileManager.default.removeItem(at: url)
+            Logger.audioRecorder.infoDev("🗑️ Cleaned up orphaned recording file: \(url.lastPathComponent)")
         } catch {
-            Logger.audioRecorder.error("Failed to cleanup recording file: \(error.localizedDescription)")
+            Logger.audioRecorder.infoDev("⚠️ Could not clean up recording file: \(error.localizedDescription)")
         }
         
         recordingURL = nil
     }
     
-    func cancelRecording() {
-        // Stop recording and cleanup without returning URL
-        audioOutput?.stopRecording()
-        captureSession?.stopRunning()
-        
-        // Cleanup references
-        captureSession = nil
-        audioInput = nil
-        audioOutput = nil
-        
-        // Restore microphone volume if it was boosted
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
-            Task {
-                await volumeManager.restoreMicrophoneVolume()
-            }
-        }
-        
-        // Update @Published properties on main thread
-        if Thread.isMainThread {
-            self.isRecording = false
-            self.stopLevelMonitoring()
-        } else {
-            DispatchQueue.main.sync {
-                self.isRecording = false
-                self.stopLevelMonitoring()
-            }
-        }
-        
-        // Clean up the recording file
-        cleanupRecording()
-    }
-    
-    private func forceCleanup() {
-        Logger.audioRecorder.infoDev("🧹 Force cleanup of capture session")
-        
-        // Stop any active recording
-        audioOutput?.stopRecording()
-        captureSession?.stopRunning()
-        
-        // Clear all references
-        captureSession = nil
-        audioInput = nil
-        audioOutput = nil
-        
-        // Don't touch pre-warmed session - it should stay ready
-        
-        // Restore microphone volume if it was boosted
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
-            Task {
-                await volumeManager.restoreMicrophoneVolume()
-            }
-        }
-        
-        // Update state on main thread
-        if Thread.isMainThread {
-            self.isRecording = false
-            self.stopLevelMonitoring()
-        } else {
-            DispatchQueue.main.sync {
-                self.isRecording = false
-                self.stopLevelMonitoring()
-            }
-        }
-        
-        // Clean up any orphaned recording file
-        cleanupRecording()
-    }
-    
     deinit {
-        // Clean up pre-warmed session on deallocation
-        prewarmedSession?.stopRunning()
-        prewarmedSession = nil
-        prewarmedInput = nil
-        prewarmedOutput = nil
-    }
-    
-    private func startLevelMonitoring() {
-        // For AVCaptureSession, we'll simulate audio levels since we don't have direct metering
-        // In a production app, you might want to add an AVCaptureAudioDataOutput to get actual levels
-        levelUpdateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self = self, self.isRecording else { return }
-            
-            // Simulate audio level (in a real implementation, you'd get this from audio data)
-            let simulatedLevel = Float.random(in: 0.3...0.8)
-            
-            // Update on main thread if needed
-            if Thread.isMainThread {
-                self.audioLevel = simulatedLevel
-            } else {
-                DispatchQueue.main.async {
-                    self.audioLevel = simulatedLevel
-                }
-            }
-        }
-    }
-    
-    private func stopLevelMonitoring() {
-        levelUpdateTimer?.invalidate()
-        levelUpdateTimer = nil
-        audioLevel = 0.0
-    }
-    
-    private func normalizeLevel(_ level: Float) -> Float {
-        // Convert dB to linear scale (0.0 to 1.0)
-        let minDb: Float = -60.0
-        let maxDb: Float = 0.0
-        
-        let clampedLevel = max(minDb, min(maxDb, level))
-        return (clampedLevel - minDb) / (maxDb - minDb)
-    }
-}
-
-extension AudioRecorder: AVCaptureFileOutputRecordingDelegate {
-    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        if let error = error {
-            Logger.audioRecorder.error("Recording finished with error: \(error.localizedDescription)")
-        } else {
-            Logger.audioRecorder.infoDev("✅ Recording finished successfully to: \(outputFileURL.path)")
-        }
+        forceCleanup()
     }
 }
