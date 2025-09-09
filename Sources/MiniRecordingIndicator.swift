@@ -43,9 +43,6 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     
     /// Update the volume level for real-time scaling
     func updateAudioLevel(_ level: Float) {
-        let updateTime = CACurrentMediaTime()
-        Logger.miniIndicator.infoDev("🎬 MiniIndicator update: \(String(format: "%.3f", level)) at \(String(format: "%.3f", updateTime))")
-        
         // Direct update - already on main queue from AudioRecorder
         self.audioLevel = level
     }

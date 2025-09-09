@@ -44,40 +44,57 @@ class AudioRecorder: NSObject, ObservableObject {
     }
     
     private func prewarmAudioEngine() async {
-        guard hasPermission else {
-            Logger.audioRecorder.infoDev("🔧 Skipping engine pre-warming - no microphone permission")
-            return
-        }
+        Logger.audioRecorder.infoDev("🔧 Starting AVAudioEngine pre-warming process...")
         
-        guard !isEnginePrewarmed else {
+        // Check if already pre-warmed on main actor
+        let alreadyPrewarmed = await MainActor.run { isEnginePrewarmed }
+        guard !alreadyPrewarmed else {
             Logger.audioRecorder.infoDev("✅ AVAudioEngine already pre-warmed")
             return
         }
         
-        Logger.audioRecorder.infoDev("🔧 Pre-warming AVAudioEngine - moving prepare() off main thread...")
-        
-        // Move the potentially blocking prepare() call to a background thread
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                Logger.audioRecorder.infoDev("🔧 Calling audioEngine.prepare() on background thread...")
-                
-                do {
-                    // Prepare the bare engine on background thread
-                    self.audioEngine.prepare()
-                    Logger.audioRecorder.infoDev("✅ audioEngine.prepare() completed successfully")
-                    
-                    DispatchQueue.main.async {
-                        self.isEnginePrewarmed = true
-                        Logger.audioRecorder.infoDev("✅ AVAudioEngine pre-warmed successfully")
-                        continuation.resume()
-                    }
-                } catch {
-                    Logger.audioRecorder.error("❌ audioEngine.prepare() failed: \(error.localizedDescription)")
-                    DispatchQueue.main.async {
-                        continuation.resume()
-                    }
-                }
+        // Check permission first - if not granted, request and wait
+        if !hasPermission {
+            Logger.audioRecorder.infoDev("🔧 No permission yet - checking current status...")
+            checkMicrophonePermission()
+            
+            // Wait for permission resolution (max 3 seconds)
+            let maxWaitTime = 3.0
+            let checkInterval = 0.1
+            var waitedTime = 0.0
+            
+            while !hasPermission && waitedTime < maxWaitTime {
+                try? await Task.sleep(nanoseconds: UInt64(checkInterval * 1_000_000_000))
+                waitedTime += checkInterval
             }
+            
+            if !hasPermission {
+                Logger.audioRecorder.infoDev("🔧 Skipping engine pre-warming - no microphone permission after \(maxWaitTime)s")
+                return
+            }
+        }
+        
+        Logger.audioRecorder.infoDev("🔧 Permission confirmed - pre-warming AVAudioEngine configuration...")
+        
+        // Pre-configure format (this is lightweight and doesn't crash)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+        audioFormat = format
+        
+        // Pre-warm device manager (cache device lookup)
+        do {
+            let deviceID = try deviceManager.getSelectedInputDevice()
+            Logger.audioRecorder.infoDev("✅ Pre-warmed device manager - cached device ID: \(deviceID)")
+        } catch {
+            Logger.audioRecorder.infoDev("⚠️ Device manager pre-warm failed: \(error.localizedDescription)")
+        }
+        
+        // IMPORTANT: Do NOT call audioEngine.prepare() without configured nodes!
+        // This would crash with "inputNode != nullptr || outputNode != nullptr"
+        // Instead, mark as ready for fast configuration during startRecording()
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.isEnginePrewarmed = true
+            Logger.audioRecorder.infoDev("🚀 AVAudioEngine pre-warmed successfully - format and device cached!")
         }
     }
     
@@ -99,6 +116,8 @@ class AudioRecorder: NSObject, ObservableObject {
         case .authorized:
             DispatchQueue.main.async {
                 self.hasPermission = true
+                // If permission just got granted and we're not pre-warmed, do it now
+                // Pre-warming is handled at app startup - no need to repeat
             }
         case .denied, .restricted:
             Logger.audioRecorder.infoDev("⚠️ Microphone permission denied/restricted - attempting re-request in case TCC entry was lost")
@@ -106,6 +125,7 @@ class AudioRecorder: NSObject, ObservableObject {
                 Logger.audioRecorder.infoDev("🔍 Re-permission request result: \(granted)")
                 DispatchQueue.main.async {
                     self?.hasPermission = granted
+                    // Pre-warming is handled at app startup - no need to repeat
                 }
             }
         case .notDetermined:
@@ -114,6 +134,7 @@ class AudioRecorder: NSObject, ObservableObject {
                 Logger.audioRecorder.infoDev("🔍 Permission request result: \(granted)")
                 DispatchQueue.main.async {
                     self?.hasPermission = granted
+                    // Pre-warming is handled at app startup - no need to repeat
                 }
             }
         @unknown default:
@@ -128,9 +149,11 @@ class AudioRecorder: NSObject, ObservableObject {
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
             DispatchQueue.main.async {
                 self?.hasPermission = granted
+                // Pre-warming is handled at app startup - no need to repeat
             }
         }
     }
+    
     
     func startRecording() -> Bool {
         guard hasPermission else {
@@ -157,9 +180,16 @@ class AudioRecorder: NSObject, ObservableObject {
         recordingURL = audioFilename
         
         do {
-            // Use optimal format for Whisper (16kHz, mono, 16-bit)
-            let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
-            audioFormat = format
+            // Use pre-warmed format if available, otherwise create new
+            let format: AVAudioFormat
+            if isEnginePrewarmed && audioFormat != nil {
+                format = audioFormat!
+                Logger.audioRecorder.infoDev("✅ Using pre-warmed audio format (16kHz mono)")
+            } else {
+                format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+                audioFormat = format
+                Logger.audioRecorder.infoDev("⚠️ Creating audio format on-demand (not pre-warmed)")
+            }
             
             // Create audio file for recording
             audioFile = try AVAudioFile(forWriting: audioFilename, settings: format.settings)
@@ -228,12 +258,15 @@ class AudioRecorder: NSObject, ObservableObject {
                 }
             }
             
-            // Use pre-warmed engine or prepare on-demand
-            if !isEnginePrewarmed {
-                Logger.audioRecorder.infoDev("⚠️ Engine not pre-warmed, preparing now...")
-                audioEngine.prepare()
+            // Prepare engine (necessary step after installTap)
+            let startTime = CACurrentMediaTime()
+            audioEngine.prepare()
+            let prepareTime = (CACurrentMediaTime() - startTime) * 1000
+            
+            if isEnginePrewarmed {
+                Logger.audioRecorder.infoDev("✅ Engine prepared with pre-warmed config in \(String(format: "%.1f", prepareTime))ms")
             } else {
-                Logger.audioRecorder.infoDev("✅ Using pre-warmed engine for optimal latency")
+                Logger.audioRecorder.infoDev("⚠️ Engine prepared on-demand in \(String(format: "%.1f", prepareTime))ms")
             }
             
             try audioEngine.start()

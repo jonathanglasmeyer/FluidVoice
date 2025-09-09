@@ -113,7 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup app configuration
         AppSetupHelper.setupApp()
         
-        // Initialize audio recorder
+        // Initialize audio recorder (pre-warming happens in init)
         audioRecorder = AudioRecorder()
         
         // Connect volume monitoring to mini indicator

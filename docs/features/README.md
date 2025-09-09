@@ -4,6 +4,7 @@
 - **[Developer Config File](developer-config-file-feature.md)** - JSON-based configuration with UI sync for developer workflows
 - **[Audio Ducking During Recording](audio-ducking-feature.md)** - Automatically reduce background audio (Spotify, etc.) during voice recording
 - **[Miniwindow Recording Indicator](miniwindow-recording-indicator.md)** - Small floating window with waveform during recording (WhisperFlow-inspired)
+- **[Uh Sound Removal](uh-sound-removal-feature.md)** - Automatically remove filler sounds like 'uh', 'äh', 'um' from transcriptions
  
 - **[Model Architecture Simplification](model-cleanup-feature.md)** - Simplify to Parakeet-only transcription for speed advantage and privacy-first approach
 
