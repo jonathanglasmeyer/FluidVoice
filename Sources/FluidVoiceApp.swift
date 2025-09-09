@@ -63,6 +63,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var miniIndicator = MiniRecordingIndicator()
     // SmartPasteTestWindow removed for debugging
     
+    // Recording state protection
+    private var isHandlingHotkey = false
+    private var lastHotkeyTime: TimeInterval = 0
+    private var recordingTimeout: Timer?
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger.app.infoDev("🚀 FluidVoice starting up...")
         
@@ -211,6 +216,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleHotkey() {
+        let currentTime = Date().timeIntervalSince1970
+        
+        // Debounce rapid hotkey presses (100ms minimum between calls)
+        if currentTime - lastHotkeyTime < 0.1 {
+            Logger.app.infoDev("🚫 Hotkey debounced - too rapid (within 100ms)")
+            return
+        }
+        
+        // Prevent reentrancy - if we're already processing a hotkey, ignore this one
+        if isHandlingHotkey {
+            Logger.app.infoDev("🚫 Hotkey ignored - already processing previous hotkey")
+            return
+        }
+        
+        isHandlingHotkey = true
+        lastHotkeyTime = currentTime
+        
+        // Ensure we always reset the flag even on errors
+        defer {
+            // Reset flag after a short delay to prevent rapid re-entry
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.isHandlingHotkey = false
+            }
+        }
+        
         print("🎹 Hotkey pressed! Starting handleHotkey()") // Direct stderr output
         Logger.app.infoDev("🎹 Hotkey pressed! Starting handleHotkey()")
         let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
@@ -227,6 +257,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Logger.app.infoDev("✅ AudioRecorder is available: \(recorder)")
             
             if recorder.isRecording {
+                Logger.app.infoDev("🛑 Stopping recording (current state: recording)")
+                
+                // Cancel any existing timeout
+                recordingTimeout?.invalidate()
+                recordingTimeout = nil
+                
                 // Stop recording and process in background - no window needed!
                 updateMenuBarIcon(isRecording: false)
                 
@@ -240,7 +276,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     Logger.app.errorDev("❌ Failed to stop recording - no audio URL")
                 }
             } else {
-                Logger.app.infoDev("🎙️ Attempting to start recording...")
+                Logger.app.infoDev("🎙️ Attempting to start recording (current state: not recording)")
                 
                 // Check permission first - debug both sources
                 let liveStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -262,6 +298,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                     // Play recording start sound if enabled
                     SoundManager().playRecordingStartSound()
+                    
+                    // Set up safety timeout (max 5 minutes recording)
+                    setupRecordingTimeout()
                 } else {
                     Logger.app.errorDev("❌ Recording failed to start")
                 }
@@ -419,6 +458,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingAnimationTimer?.cancel()
         recordingAnimationTimer = nil
         
+        // Stop any active recording timeout
+        recordingTimeout?.invalidate()
+        recordingTimeout = nil
+        
         // Gracefully shutdown Parakeet daemon
         Task {
             await ParakeetDaemon.shared.stop()
@@ -465,6 +508,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         return debugURL
+    }
+    
+    // MARK: - Recording Timeout Protection
+    
+    /// Sets up a safety timeout to prevent infinite recordings
+    private func setupRecordingTimeout() {
+        // Cancel any existing timeout
+        recordingTimeout?.invalidate()
+        
+        // Set up 5-minute timeout as safety measure
+        recordingTimeout = Timer.scheduledTimer(withTimeInterval: 300.0, repeats: false) { [weak self] _ in
+            Logger.app.infoDev("⏰ Recording timeout reached (5 minutes) - automatically stopping recording")
+            self?.forceStopRecording(reason: "timeout")
+        }
+        
+        Logger.app.infoDev("⏰ Recording timeout set (5 minutes)")
+    }
+    
+    /// Force stops recording in case of stuck states or timeouts
+    private func forceStopRecording(reason: String) {
+        Logger.app.infoDev("🚨 Force stopping recording (reason: \(reason))")
+        
+        // Cancel timeout
+        recordingTimeout?.invalidate()
+        recordingTimeout = nil
+        
+        // Reset state flags
+        isHandlingHotkey = false
+        
+        guard let recorder = audioRecorder else {
+            Logger.app.infoDev("❌ No AudioRecorder available for force stop")
+            return
+        }
+        
+        if recorder.isRecording {
+            Logger.app.infoDev("🛑 Force stopping active recording")
+            updateMenuBarIcon(isRecording: false)
+            
+            if let audioURL = recorder.stopRecording() {
+                Logger.app.infoDev("🔄 Starting background transcription after force stop...")
+                startBackgroundTranscription(audioURL: audioURL)
+            } else {
+                Logger.app.errorDev("❌ Failed to get audio URL after force stop")
+            }
+        } else {
+            Logger.app.infoDev("ℹ️ Recording already stopped - just updating UI state")
+            updateMenuBarIcon(isRecording: false)
+        }
     }
     
     // MARK: - Background Transcription
