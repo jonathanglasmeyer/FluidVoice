@@ -4,6 +4,7 @@ import AppKit
 import HotKey
 import ServiceManagement
 import AVFoundation
+import Combine
 import os.log
 
 @main
@@ -59,6 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController = WindowController()
     private var audioRecorder: AudioRecorder?
     private var recordingAnimationTimer: DispatchSourceTimer?
+    var miniIndicator = MiniRecordingIndicator()
     // SmartPasteTestWindow removed for debugging
     
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -113,6 +115,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Initialize audio recorder
         audioRecorder = AudioRecorder()
+        
+        // Connect volume monitoring to mini indicator
+        setupVolumeMonitoring()
         
         // Create menu bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -273,8 +278,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             if isRecording {
                 self.startRecordingAnimation()
+                self.miniIndicator.show()
             } else {
                 self.stopRecordingAnimation()
+                self.miniIndicator.hide()
                 // Use normal microphone icon
                 button.image = AppSetupHelper.createMenuBarIcon()
             }
@@ -420,6 +427,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Cleanup is handled by the deinitializers of the helper classes
         AppSetupHelper.cleanupOldTemporaryFiles()
     }
+    
+    // MARK: - Volume Monitoring
+    
+    private func setupVolumeMonitoring() {
+        guard let recorder = audioRecorder else { return }
+        
+        // Use Combine to observe audioLevel changes
+        recorder.$audioLevel
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] level in
+                self?.miniIndicator.updateAudioLevel(level)
+            }
+            .store(in: &cancellables)
+    }
+    
+    private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Debug Configuration
     
