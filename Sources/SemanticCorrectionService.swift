@@ -7,6 +7,7 @@ final class SemanticCorrectionService {
     private let mlxService = MLXCorrectionService()
     private let keychainService: KeychainServiceProtocol
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "SemanticCorrection")
+    private let fillerSoundProcessor = FillerSoundProcessor()
     private lazy var fastVocabularyCorrector: FastVocabularyCorrector = {
         let corrector = FastVocabularyCorrector()
         corrector.load(glossary: VocabularySettings.getGlossary())
@@ -26,7 +27,11 @@ final class SemanticCorrectionService {
     func correct(text: String, providerUsed: TranscriptionProvider) async -> String {
         // Always run Fast Vocabulary Correction first (privacy-first, instant)
         logger.infoDev("Running fast vocabulary correction")
-        let correctedText = correctWithFastVocabulary(text: text)
+        let vocabularyCorrectedText = correctWithFastVocabulary(text: text)
+        
+        // Always run Filler Sound Removal after vocabulary correction
+        logger.infoDev("Running filler sound removal")
+        let correctedText = fillerSoundProcessor.removeFillerSounds(from: vocabularyCorrectedText)
         
         // Then check for additional semantic correction modes
         let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
