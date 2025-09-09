@@ -70,56 +70,34 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         window?.level = NSWindow.Level.floating
         window?.isOpaque = false
         window?.backgroundColor = NSColor.clear
-        window?.hasShadow = false  // We'll draw our own round shadow
+        window?.hasShadow = true
         window?.ignoresMouseEvents = true
         window?.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
         
-        // Shadow container (outer) - handles shadow without clipping
-        let shadowContainer = NSView()
-        shadowContainer.wantsLayer = true
-        shadowContainer.layer?.shadowOpacity = 0.22
-        shadowContainer.layer?.shadowRadius = 10
-        shadowContainer.layer?.shadowOffset = CGSize(width: 0, height: -0.5)
-        window?.contentView = shadowContainer
+        guard let content = window?.contentView else { return }
         
-        // Clip view (inner) - handles rounded corners with clipping
-        let clipView = NSView(frame: shadowContainer.bounds)
-        clipView.autoresizingMask = [.width, .height]
-        clipView.wantsLayer = true
-        clipView.layer?.cornerRadius = 16
-        clipView.layer?.masksToBounds = true
-        shadowContainer.addSubview(clipView)
-        
-        // Shadow path follows window size
-        shadowContainer.postsFrameChangedNotifications = true
-        frameObserverToken = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
-                                              object: shadowContainer, queue: .main) { _ in
-            shadowContainer.layer?.shadowPath = CGPath(roundedRect: shadowContainer.bounds,
-                                                      cornerWidth: 16, cornerHeight: 16, transform: nil)
+        // Helper function for creating rounded mask
+        func makeMask(_ size: CGSize) -> NSImage {
+            let img = NSImage(size: size)
+            img.lockFocus()
+            NSColor.white.setFill()
+            NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 16, yRadius: 16).fill()
+            img.unlockFocus()
+            return img
         }
-        shadowContainer.layer?.shadowPath = CGPath(roundedRect: shadowContainer.bounds,
-                                                   cornerWidth: 16, cornerHeight: 16, transform: nil)
         
-        // NSVisualEffectView WITHOUT any layer properties - fills clip view
-        let effectView = NSVisualEffectView(frame: clipView.bounds)
+        // VEV directly in contentView - no clipping container above it
+        let effectView = NSVisualEffectView(frame: content.bounds)
         effectView.autoresizingMask = [.width, .height]
-        
-        // Detect dark mode for appropriate material selection
-        let isDarkMode = window?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        
-        // Material selection with appearance and accessibility consideration
-        if NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency {
-            effectView.material = .windowBackground  // Fallback for reduced transparency
-            effectView.appearance = NSAppearance(named: isDarkMode ? .vibrantDark : .vibrantLight)
-        } else {
-            effectView.material = isDarkMode ? .hudWindow : .underWindowBackground  // clearer Light, richer Dark
-            effectView.appearance = NSAppearance(named: isDarkMode ? .vibrantDark : .vibrantLight)
-        }
         effectView.blendingMode = .behindWindow
         effectView.state = .active
-        effectView.isEmphasized = false  // lets chrome handle the depth
-        // CRITICAL: No wantsLayer, no cornerRadius/masksToBounds on effectView!
-        clipView.addSubview(effectView)
+        effectView.isEmphasized = false
+        // No appearance setting - inherits from window naturally
+        effectView.material = .popover  // unified material for both Light and Dark
+        
+        // Rounded corners via maskImage - no masksToBounds in parents
+        effectView.maskImage = makeMask(content.bounds.size)
+        content.addSubview(effectView, positioned: .below, relativeTo: nil)
         
         // SwiftUI content with GlassChrome styling
         let contentView = MiniIndicatorView(indicator: self)
@@ -127,17 +105,29 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         
-        clipView.addSubview(hostingView)
+        content.addSubview(hostingView)
         NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: clipView.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: clipView.bottomAnchor)
+            hostingView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: content.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: content.bottomAnchor)
         ])
+        
+        // Round window shadow via superview
+        content.superview?.wantsLayer = true
+        content.superview?.layer?.cornerRadius = 16
+        content.superview?.layer?.masksToBounds = false
+        
+        // Mask updates on frame/scale changes
+        content.postsFrameChangedNotifications = true
+        frameObserverToken = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
+                                              object: content, queue: .main) { _ in
+            effectView.maskImage = makeMask(content.bounds.size)
+        }
         
         // Fade in animation
         window?.alphaValue = 0.0
-        window?.orderFront(nil)
+        window?.orderFrontRegardless()
         
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.3
@@ -145,7 +135,7 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
             window?.animator().alphaValue = 1.0
         }
         
-        Logger.miniIndicator.infoDev("✅ Mini indicator window created at position: \(windowFrame)")
+        Logger.miniIndicator.infoDev("✅ Mini indicator window created with simplified glass architecture at: \(windowFrame)")
     }
     
     private func hideWindow() {
