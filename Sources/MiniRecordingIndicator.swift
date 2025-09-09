@@ -255,6 +255,8 @@ struct GlassChrome: ViewModifier {
                 RoundedRectangle(cornerRadius: r, style: .continuous)
                     .stroke(Color.white.opacity(dark ? 0.10 : 0.14), lineWidth: 1)
             )
+            .compositingGroup()
+            .clipShape(RoundedRectangle(cornerRadius: r, style: .continuous))
     }
 }
 

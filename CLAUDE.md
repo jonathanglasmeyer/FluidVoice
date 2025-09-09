@@ -19,6 +19,10 @@
 - Privacy Logs: Device names show as `<private>` - use `sudo log stream` for real names
 - **🚨 AI niemals BashOutput für Logs:** User copy/pastet relevante Logs - spart Context Window  
 - **🚨 BashOutput HARD LIMIT:** Max 10-20 lines output - niemals full log dumps (Context Bloat!)
+- **🚨 BACKGROUND BASH LIMIT:** Niemals `run_in_background: true` für Build+Run chains verwenden!
+  - ❌ FALSCH: `./build-dev.sh && FluidVoice-dev.app/Contents/MacOS/FluidVoice` (background)
+  - ✅ RICHTIG: Nur `./build-dev.sh` (background), dann User startet App manuell
+  - **Grund:** Background build+run chains akkumulieren zu 50+ Zombie-Shells die Context Window zerstören
 
 ## AI Testing Grenzen
 
