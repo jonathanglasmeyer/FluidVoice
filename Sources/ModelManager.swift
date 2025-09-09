@@ -376,7 +376,7 @@ class ModelManager: ObservableObject {
             try await UNUserNotificationCenter.current().add(request)
         } catch {
             // Silently fail if notifications aren't available (e.g., when running with swift run)
-            print("Failed to send notification: \(error.localizedDescription)")
+            Logger.app.infoDev("Failed to send notification: \(error.localizedDescription)")
         }
     }
     

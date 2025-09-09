@@ -255,10 +255,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             isHandlingHotkey = false
         }
         
-        print("🎹 Hotkey pressed! Starting handleHotkey()") // Direct stderr output
         Logger.app.infoDev("🎹 Hotkey pressed! Starting handleHotkey()")
         let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
-        print("⚙️ immediateRecording = \(immediateRecording)") // Direct stderr output
         Logger.app.infoDev("⚙️ immediateRecording = \(immediateRecording)")
         
         if immediateRecording {
