@@ -67,58 +67,102 @@ struct ContentView: View {
         showError = false
     }
     
-    var body: some View {
-        VStack(spacing: 20) {
-            // Simplified status display
-            StatusDisplayView(
-                status: statusViewModel.currentStatus,
-                audioLevel: audioRecorder.audioLevel,
-                onPermissionInfoTapped: {
-                    permissionManager.requestPermissionWithEducation()
+    // MARK: - UI Components
+    @ViewBuilder
+    private var statusDisplaySection: some View {
+        StatusDisplayView(
+            status: statusViewModel.currentStatus,
+            audioLevel: audioRecorder.audioLevel,
+            onPermissionInfoTapped: {
+                permissionManager.requestPermissionWithEducation()
+            }
+        )
+    }
+    
+    @ViewBuilder
+    private var firstModelHint: some View {
+        if showFirstModelUseHint {
+            Text("First-time model setup may take a little longer")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary.opacity(0.7))
+        }
+    }
+    
+    @ViewBuilder
+    private var recordingButton: some View {
+        RecordingButton(
+            isRecording: audioRecorder.isRecording,
+            hasPermission: audioRecorder.hasPermission,
+            isProcessing: isProcessing,
+            showSuccess: showSuccess,
+            transcriptionProvider: transcriptionProvider,
+            onTap: {
+                if audioRecorder.isRecording {
+                    stopAndProcess()
+                } else if showSuccess {
+                    performUserTriggeredPaste(text: "")
+                } else {
+                    startRecording()
                 }
-            )
-            // First-use hint: local models may take longer to initialize
-            if showFirstModelUseHint {
-                Text("First-time model setup may take a little longer")
+            },
+            onHover: { hovering in
+                isHovered = hovering
+            }
+        )
+    }
+    
+    @ViewBuilder
+    private var instructionText: some View {
+        if audioRecorder.hasPermission && !isProcessing && !audioRecorder.isRecording {
+            if showSuccess {
+                Text("Pasting...")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary.opacity(0.7))
+            } else {
+                Text(LocalizedStrings.UI.spaceToRecord)
                     .font(.system(size: 10))
                     .foregroundColor(.secondary.opacity(0.7))
             }
-            // Debug pipeline lines removed
-            
-            // Record/Stop button
-            RecordingButton(
-                isRecording: audioRecorder.isRecording,
-                hasPermission: audioRecorder.hasPermission,
-                isProcessing: isProcessing,
-                showSuccess: showSuccess,
-                transcriptionProvider: transcriptionProvider,
-                onTap: {
-                    if audioRecorder.isRecording {
-                        stopAndProcess()
-                    } else if showSuccess {
-                        // Always perform paste - no more SmartPaste setting
-                        performUserTriggeredPaste(text: "")
-                    } else {
-                        startRecording()
-                    }
-                },
-                onHover: { hovering in
-                    isHovered = hovering
-                }
-            )
-            
-            // Instruction text below microphone
-            if audioRecorder.hasPermission && !isProcessing && !audioRecorder.isRecording {
-                if showSuccess {
-                            Text("Pasting...")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary.opacity(0.7))
-                } else {
-                    Text(LocalizedStrings.UI.spaceToRecord)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary.opacity(0.7))
+        }
+    }
+    
+    var body: some View {
+        mainContentView
+            .onAppear { setupViewListeners() }
+            .onDisappear { cleanupViewListeners() }
+            .onChange(of: audioRecorder.isRecording) { oldValue, recording in
+                updateStatus()
+            }
+            .onChange(of: isProcessing) { _, _ in
+                updateStatus()
+            }
+            .onChange(of: progressMessage) { _, _ in
+                updateStatus()
+            }
+            .onChange(of: audioRecorder.hasPermission) { _, _ in
+                updateStatus()
+            }
+            .onChange(of: showSuccess) { _, _ in
+                updateStatus()
+            }
+            .onChange(of: showError) { _, newValue in
+                updateStatus()
+                if newValue {
+                    hideSuccessAfterDelay()
                 }
             }
+            .onChange(of: permissionManager.allPermissionsGranted) { _, granted in
+                audioRecorder.hasPermission = (permissionManager.microphonePermissionState == .granted)
+            }
+    }
+    
+    @ViewBuilder
+    private var mainContentView: some View {
+        VStack(spacing: 20) {
+            statusDisplaySection
+            firstModelHint
+            recordingButton
+            instructionText
         }
         .padding(20)
         .sheet(isPresented: $permissionManager.showEducationalModal) {
@@ -144,7 +188,9 @@ struct ContentView: View {
             )
         }
         .focusable(false)
-        .onAppear {
+    }
+    
+    private func setupViewListeners() {
             // Check permission status when view appears
             audioRecorder.checkMicrophonePermission()
             
@@ -196,8 +242,8 @@ struct ContentView: View {
                 queue: .main
             ) { _ in
                 if audioRecorder.isRecording {
-                    // Cancel recording
-                    audioRecorder.cancelRecording()
+                    // Cancel recording by stopping it and discarding the result
+                    _ = audioRecorder.stopRecording()
                     isProcessing = false
                 } else if isProcessing {
                     // Cancel processing task
@@ -291,99 +337,77 @@ struct ContentView: View {
             ) { _ in
                 showLastAudioFile()
             }
-        }
-        .onDisappear {
-            // Clean up observers to prevent memory leaks
-            if let observer = transcriptionProgressObserver {
-                NotificationCenter.default.removeObserver(observer)
-                transcriptionProgressObserver = nil
-            }
             
-            if let observer = spaceKeyObserver {
-                NotificationCenter.default.removeObserver(observer)
-                spaceKeyObserver = nil
-            }
-            
-            if let observer = escapeKeyObserver {
-                NotificationCenter.default.removeObserver(observer)
-                escapeKeyObserver = nil
-            }
-            
-            if let observer = returnKeyObserver {
-                NotificationCenter.default.removeObserver(observer)
-                returnKeyObserver = nil
-            }
-            
-            if let observer = targetAppObserver {
-                NotificationCenter.default.removeObserver(observer)
-                targetAppObserver = nil
-            }
-            
-            if let observer = recordingFailedObserver {
-                NotificationCenter.default.removeObserver(observer)
-                recordingFailedObserver = nil
-            }
-            
-            if let observer = windowFocusObserver {
-                NotificationCenter.default.removeObserver(observer)
-                windowFocusObserver = nil
-            }
-            
-            if let observer = retryObserver {
-                NotificationCenter.default.removeObserver(observer)
-                retryObserver = nil
-            }
-            
-            if let observer = showAudioFileObserver {
-                NotificationCenter.default.removeObserver(observer)
-                showAudioFileObserver = nil
-            }
-            
-            // Cancel any running processing task
-            processingTask?.cancel()
-            processingTask = nil
-            
-            // Clear audio URL to prevent memory retention
-            lastAudioURL = nil
-        }
-        .onChange(of: audioRecorder.isRecording) { oldValue, recording in
-            updateStatus()
-        }
-        .onChange(of: isProcessing) { _, _ in
-            updateStatus()
-        }
-        .onChange(of: progressMessage) { _, _ in
-            updateStatus()
-        }
-        .onChange(of: audioRecorder.hasPermission) { _, _ in
-            updateStatus()
-        }
-        .onChange(of: showSuccess) { _, _ in
-            updateStatus()
-        }
-        .onChange(of: showError) { _, newValue in
-            updateStatus()
-            if newValue {
-                showErrorAlert()
-            }
-        }
-        .onChange(of: permissionManager.allPermissionsGranted) { _, granted in
-            // Sync permission manager state with audio recorder
-            audioRecorder.hasPermission = (permissionManager.microphonePermissionState == .granted)
-            updateStatus()
-        }
-        .onAppear {
             // Initialize permission state
             permissionManager.checkPermissionState()
             
             // Ensure transcription provider is loaded correctly on app launch
-            // This helps prevent settings from being reset during app updates
             if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
                let provider = TranscriptionProvider(rawValue: storedProvider) {
                 transcriptionProvider = provider
             }
             
             updateStatus()
+    }
+    
+    private func cleanupViewListeners() {
+        if let observer = transcriptionProgressObserver {
+            NotificationCenter.default.removeObserver(observer)
+            transcriptionProgressObserver = nil
+        }
+        
+        if let observer = spaceKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+            spaceKeyObserver = nil
+        }
+        
+        if let observer = escapeKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+            escapeKeyObserver = nil
+        }
+        
+        if let observer = returnKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+            returnKeyObserver = nil
+        }
+        
+        if let observer = targetAppObserver {
+            NotificationCenter.default.removeObserver(observer)
+            targetAppObserver = nil
+        }
+        
+        if let observer = recordingFailedObserver {
+            NotificationCenter.default.removeObserver(observer)
+            recordingFailedObserver = nil
+        }
+        
+        if let observer = windowFocusObserver {
+            NotificationCenter.default.removeObserver(observer)
+            windowFocusObserver = nil
+        }
+        
+        if let observer = showAudioFileObserver {
+            NotificationCenter.default.removeObserver(observer)
+            showAudioFileObserver = nil
+        }
+        
+        if let observer = retryObserver {
+            NotificationCenter.default.removeObserver(observer)
+            retryObserver = nil
+        }
+        
+        processingTask?.cancel()
+        processingTask = nil
+        
+        lastAudioURL = nil
+    }
+    
+    private func hideSuccessAfterDelay() {
+        Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+            await MainActor.run {
+                showError = false
+            }
         }
     }
     
