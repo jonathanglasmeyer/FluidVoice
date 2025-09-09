@@ -9,9 +9,9 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     @Published var isVisible: Bool = false
     @Published var audioLevel: Float = 0.0
     
-    private static let baseSize: CGFloat = 25
-    private static let maxScaleMultiplier: CGFloat = 1.8
-    private static let windowPadding: CGFloat = 60 // Distance from bottom of screen
+    private static let containerWidth: CGFloat = 200
+    private static let containerHeight: CGFloat = 100
+    private static let windowPadding: CGFloat = 80 // Distance from bottom of screen
     
     override init() {
         super.init()
@@ -50,9 +50,9 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     private func createAndShowWindow() {
         let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         
-        // Position at bottom center of screen
-        let windowSize = NSSize(width: Self.baseSize * Self.maxScaleMultiplier + 20, 
-                               height: Self.baseSize * Self.maxScaleMultiplier + 20)
+        // Position at bottom center of screen - window exactly matches container size
+        let windowSize = NSSize(width: Self.containerWidth, 
+                               height: Self.containerHeight)
         let windowX = screenFrame.midX - windowSize.width / 2
         let windowY = screenFrame.minY + Self.windowPadding
         let windowFrame = NSRect(x: windowX, y: windowY, width: windowSize.width, height: windowSize.height)
@@ -64,17 +64,54 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
             defer: false
         )
         
-        // Configure window behavior
+        // Configure window behavior  
         window?.level = NSWindow.Level.floating
         window?.isOpaque = false
         window?.backgroundColor = NSColor.clear
-        window?.hasShadow = false
+        window?.hasShadow = false  // We'll draw our own round shadow
         window?.ignoresMouseEvents = true
         window?.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
         
-        // Create SwiftUI content
+        // Container with roundness + shadow (layer-based) - NOT the effect view
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 16
+        container.layer?.masksToBounds = true
+        // Round, soft shadow
+        container.layer?.shadowOpacity = 0.35
+        container.layer?.shadowRadius = 18
+        container.layer?.shadowOffset = CGSize(width: 0, height: -2)
+        container.layer?.shadowPath = CGPath(roundedRect: CGRect(origin: .zero, size: windowSize),
+                                            cornerWidth: 16, cornerHeight: 16, transform: nil)
+        
+        window?.contentView = container
+        
+        // NSVisualEffectView WITHOUT any layer properties - fills container
+        let effectView = NSVisualEffectView(frame: container.bounds)
+        effectView.autoresizingMask = [.width, .height]
+        effectView.material = .popover  // Good balance of clarity and blur
+        effectView.blendingMode = .behindWindow
+        effectView.state = .active
+        // CRITICAL: No wantsLayer, no cornerRadius/masksToBounds on effectView!
+        container.addSubview(effectView)
+        
+        // SwiftUI content on top (without background)
         let contentView = MiniIndicatorView(indicator: self)
-        window?.contentView = NSHostingView(rootView: contentView)
+            .padding(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            )
+        let hostingView = NSHostingView(rootView: contentView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        
+        container.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: container.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
         
         // Fade in animation
         window?.alphaValue = 0.0
@@ -108,32 +145,37 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     }
 }
 
-/// SwiftUI view for the circular volume indicator
+/// SwiftUI view for the glassmorphism waveform indicator  
 struct MiniIndicatorView: View {
     @ObservedObject var indicator: MiniRecordingIndicator
     
-    private let baseSize: CGFloat = 25
-    private let maxScaleMultiplier: CGFloat = 1.8
+    private let barCount = 5
+    private let barWidth: CGFloat = 3
+    private let barSpacing: CGFloat = 4
+    private let maxBarHeight: CGFloat = 30
+    private let minBarHeight: CGFloat = 6
     
     var body: some View {
-        ZStack {
-            // Transparent background
-            Color.clear
-            
-            // Main indicator circle
-            Circle()
-                .fill(Color.black)
-                .frame(width: baseSize, height: baseSize)
-                .scaleEffect(calculateScale())
-                .opacity(0.8)
-                .animation(.easeOut(duration: 0.1), value: indicator.audioLevel)
+        HStack(spacing: barSpacing) {
+            ForEach(0..<barCount, id: \.self) { index in
+                RoundedRectangle(cornerRadius: barWidth/2)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.9), Color.white.opacity(0.6)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: barWidth, height: calculateBarHeight(for: index))
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    private func calculateScale() -> CGFloat {
-        let normalizedLevel = max(0.0, min(1.0, CGFloat(indicator.audioLevel)))
-        return 1.0 + (normalizedLevel * (maxScaleMultiplier - 1.0))
+    private func calculateBarHeight(for index: Int) -> CGFloat {
+        // Static pattern for now - no animation
+        let pattern: [CGFloat] = [0.6, 0.8, 1.0, 0.8, 0.6]
+        let multiplier = pattern[index]
+        return minBarHeight + (maxBarHeight - minBarHeight) * multiplier
     }
 }
 
