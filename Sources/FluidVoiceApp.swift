@@ -235,10 +235,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Ensure we always reset the flag even on errors
         defer {
-            // Reset flag after a short delay to prevent rapid re-entry
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.isHandlingHotkey = false
-            }
+            // Reset flag immediately - the debouncing is already handled above
+            isHandlingHotkey = false
         }
         
         print("🎹 Hotkey pressed! Starting handleHotkey()") // Direct stderr output
