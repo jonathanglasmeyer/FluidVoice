@@ -10,8 +10,13 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     @Published var isVisible: Bool = false
     @Published var audioLevel: Float = 0.0
     
+    // Rolling buffer for waveform effect (5 bars)
+    @Published var audioLevelBuffer: [Float] = Array(repeating: 0.0, count: 5)
+    private var bufferUpdateTimer: Timer?
+    private let bufferUpdateInterval: TimeInterval = 1.0/30.0 // 30fps for buffer shifting
+    
     private static let containerWidth: CGFloat = 200
-    private static let containerHeight: CGFloat = 100
+    private static let containerHeight: CGFloat = 35
     private static let windowPadding: CGFloat = 80 // Distance from bottom of screen
     
     override init() {
@@ -27,6 +32,7 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.createAndShowWindow()
             self?.isVisible = true
+            self?.startBufferAnimation()
         }
     }
     
@@ -37,15 +43,40 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         Logger.miniIndicator.infoDev("🎯 Hiding mini recording indicator")
         
         DispatchQueue.main.async { [weak self] in
+            self?.stopBufferAnimation()
             self?.hideWindow()
             self?.isVisible = false
+            // Reset buffer when hiding
+            self?.audioLevelBuffer = Array(repeating: 0.0, count: 5)
+            self?.audioLevel = 0.0
         }
     }
     
     /// Update the volume level for real-time scaling
     func updateAudioLevel(_ level: Float) {
         // Direct update - already on main queue from AudioRecorder
-        self.audioLevel = level
+        // Apply smoothing to reduce jitter (70% old value, 30% new value)
+        let smoothedLevel = (audioLevel * 0.7) + (level * 0.3)
+        self.audioLevel = smoothedLevel
+    }
+    
+    private func startBufferAnimation() {
+        // Stop any existing timer
+        bufferUpdateTimer?.invalidate()
+        
+        // Start new timer for rolling waveform effect
+        bufferUpdateTimer = Timer.scheduledTimer(withTimeInterval: bufferUpdateInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            
+            // Shift buffer left and add current level at the end
+            self.audioLevelBuffer.removeFirst()
+            self.audioLevelBuffer.append(self.audioLevel)
+        }
+    }
+    
+    private func stopBufferAnimation() {
+        bufferUpdateTimer?.invalidate()
+        bufferUpdateTimer = nil
     }
     
     private func createAndShowWindow() {
@@ -175,7 +206,7 @@ struct MiniIndicatorView: View {
     private let barCount = 5
     private let barWidth: CGFloat = 3
     private let barSpacing: CGFloat = 4
-    private let maxBarHeight: CGFloat = 30
+    private let maxBarHeight: CGFloat = 20
     private let minBarHeight: CGFloat = 6
     
     var body: some View {
@@ -191,15 +222,37 @@ struct MiniIndicatorView: View {
                         )
                     )
                     .frame(width: barWidth, height: calculateBarHeight(for: index))
+                    .animation(.easeInOut(duration: 0.1), value: indicator.audioLevelBuffer)
             }
         }
+        .frame(height: maxBarHeight) // Fixed container height prevents window expansion
     }
     
     private func calculateBarHeight(for index: Int) -> CGFloat {
-        // Static pattern for now - no animation
-        let pattern: [CGFloat] = [0.6, 0.8, 1.0, 0.8, 0.6]
-        let multiplier = pattern[index]
-        return minBarHeight + (maxBarHeight - minBarHeight) * multiplier
+        // Get level from rolling buffer
+        let level = indicator.audioLevelBuffer[safe: index] ?? 0.0
+        
+        // Apply easing curve for more natural response
+        let easedLevel = easeInOutQuad(CGFloat(level))
+        
+        // Add subtle idle animation when no audio (creates a "breathing" effect)
+        let idleAnimation: CGFloat = {
+            if level < 0.05 {
+                // Create wave pattern across bars when idle
+                let time = Date().timeIntervalSince1970
+                let wave = sin(time * 2.0 + Double(index) * 0.5) * 1.5
+                return CGFloat(wave)
+            }
+            return 0
+        }()
+        
+        // Calculate final height with idle animation
+        let baseHeight = minBarHeight + idleAnimation
+        return max(minBarHeight, baseHeight + (maxBarHeight - minBarHeight) * easedLevel)
+    }
+    
+    private func easeInOutQuad(_ t: CGFloat) -> CGFloat {
+        return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
     }
 }
 
@@ -267,4 +320,11 @@ extension View {
 // MARK: - Logger Extension
 extension Logger {
     static let miniIndicator = Logger(subsystem: "com.fluidvoice.app", category: "MiniRecordingIndicator")
+}
+
+// MARK: - Safe Array Extension
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        return index >= 0 && index < count ? self[index] : nil
+    }
 }
