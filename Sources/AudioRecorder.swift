@@ -21,7 +21,7 @@ class AudioRecorder: NSObject, ObservableObject {
     private var savedDefaultInputDevice: AudioDeviceID?
     
     // True HAL AudioUnit direct input source (completely bypasses AVAudioEngine.inputNode)
-    private var halMicSource: HALMicrophoneSourceV2!
+    private var halMicSource: HALMicrophoneSource!
     private var audioFile: AVAudioFile?
     private var audioFormat: AVAudioFormat?
     
@@ -43,7 +43,7 @@ class AudioRecorder: NSObject, ObservableObject {
         logSelectedMicrophone()
         
         // Initialize true HAL microphone source
-        halMicSource = HALMicrophoneSourceV2()
+        halMicSource = HALMicrophoneSource()
         
         // Pre-warm device manager for optimal latency
         Task {
@@ -88,21 +88,50 @@ class AudioRecorder: NSObject, ObservableObject {
         
         Logger.audioRecorder.infoDev("🔧 Permission confirmed - pre-warming device manager...")
         
-        // Pre-configure format (this is lightweight and doesn't crash)
-        let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+        // Pre-configure format with default - will be updated to device native rate during prewarming
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!  // Default, will be detected
         audioFormat = format
         
-        // Pre-warm device manager (cache device lookup)
+        // Pre-warm device manager and HAL AudioUnit (cache device lookup)
         do {
             let deviceID = try deviceManager.getSelectedInputDevice()
             Logger.audioRecorder.infoDev("✅ Pre-warmed device manager - cached device ID: \(deviceID)")
+            
+            // Pre-warm HAL AudioUnit with handlers for instant recording start
+            await halMicSource.prewarm(using: deviceID,
+                recordingHandler: { [weak self] audioData, frameCount in
+                    guard let self = self, self.isRecording else { return }
+                    
+                    // Convert raw float data to AVAudioPCMBuffer for file writing
+                    self.writeAudioData(audioData, frameCount: frameCount)
+                },
+                levelHandler: { [weak self] level in
+                    guard let self = self else { return }
+                    
+                    // Throttle UI updates to 60fps
+                    let now = CACurrentMediaTime()
+                    if now - self.lastLevelUpdateTime >= self.levelUpdateInterval {
+                        DispatchQueue.main.async {
+                            self.audioLevel = level
+                            // MiniIndicator will be updated via Combine publisher
+                        }
+                        self.lastLevelUpdateTime = now
+                    }
+                }
+            )
+            
+            // Update audio format to match device native sample rate
+            if let nativeFormat = halMicSource.nativeAudioFormat {
+                audioFormat = nativeFormat
+                Logger.audioRecorder.infoDev("🎵 Updated audio format to native: \(nativeFormat.sampleRate)Hz")
+            }
         } catch {
             Logger.audioRecorder.infoDev("⚠️ Device manager pre-warm failed: \(error.localizedDescription)")
         }
         
         await MainActor.run { [weak self] in
             self?.isEnginePrewarmed = true
-            Logger.audioRecorder.infoDev("🚀 Device manager pre-warmed successfully - format and device cached!")
+            Logger.audioRecorder.infoDev("🚀 HAL AudioUnit and device manager pre-warmed successfully!")
         }
     }
     
@@ -203,8 +232,9 @@ class AudioRecorder: NSObject, ObservableObject {
             let selectedDeviceID = try deviceManager.getSelectedInputDevice()
             Logger.audioRecorder.infoDev("📱 Using device ID: \(selectedDeviceID) (direct HAL binding)")
             
-            // Create audio file for recording
-            audioFile = try AVAudioFile(forWriting: audioFilename, settings: format.settings)
+            // Create audio file for recording (always 16kHz for Whisper)
+            let whisperFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+            audioFile = try AVAudioFile(forWriting: audioFilename, settings: whisperFormat.settings)
             
             // Start true HAL AudioUnit with direct device binding (no AVAudioEngine involvement)
             let startTime = CACurrentMediaTime()
@@ -444,27 +474,66 @@ class AudioRecorder: NSObject, ObservableObject {
     }
     
     /// Convert raw float audio data to AVAudioPCMBuffer and write to file
+    /// Resamples from native device rate to 16kHz for Whisper compatibility
     private func writeAudioData(_ audioData: UnsafePointer<Float>, frameCount: Int) {
-        guard let format = audioFormat else { return }
+        guard let nativeFormat = audioFormat else { return }
         
-        // Create buffer with the audio data
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)) else {
-            Logger.audioRecorder.error("❌ Could not create PCM buffer")
+        // Create buffer with the native audio data
+        guard let nativeBuffer = AVAudioPCMBuffer(pcmFormat: nativeFormat, frameCapacity: AVAudioFrameCount(frameCount)) else {
+            Logger.audioRecorder.error("❌ Could not create native PCM buffer")
             return
         }
         
-        buffer.frameLength = AVAudioFrameCount(frameCount)
+        nativeBuffer.frameLength = AVAudioFrameCount(frameCount)
         
-        // Copy audio data to buffer
-        if let channelData = buffer.floatChannelData?[0] {
+        // Copy audio data to native buffer
+        if let channelData = nativeBuffer.floatChannelData?[0] {
             channelData.update(from: audioData, count: frameCount)
         }
         
-        // Write to file
-        do {
-            try audioFile?.write(from: buffer)
-        } catch {
-            Logger.audioRecorder.error("❌ Failed to write audio buffer: \(error.localizedDescription)")
+        // Resample from native rate to 16kHz for Whisper
+        let whisperFormat = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+        
+        if nativeFormat.sampleRate == 16000 {
+            // Already 16kHz, write directly
+            do {
+                try audioFile?.write(from: nativeBuffer)
+            } catch {
+                Logger.audioRecorder.error("❌ Failed to write audio buffer: \(error.localizedDescription)")
+            }
+        } else {
+            // Resample to 16kHz
+            guard let converter = AVAudioConverter(from: nativeFormat, to: whisperFormat) else {
+                Logger.audioRecorder.error("❌ Could not create audio converter")
+                return
+            }
+            
+            // Calculate output buffer size
+            let ratio = whisperFormat.sampleRate / nativeFormat.sampleRate
+            let outputFrameCount = AVAudioFrameCount(Double(frameCount) * ratio)
+            
+            guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: whisperFormat, frameCapacity: outputFrameCount) else {
+                Logger.audioRecorder.error("❌ Could not create output buffer")
+                return
+            }
+            
+            var error: NSError?
+            let status = converter.convert(to: outputBuffer, error: &error) { _, outStatus in
+                outStatus.pointee = AVAudioConverterInputStatus.haveData
+                return nativeBuffer
+            }
+            
+            if status == .error {
+                Logger.audioRecorder.error("❌ Audio conversion failed: \(error?.localizedDescription ?? "unknown error")")
+                return
+            }
+            
+            // Write resampled buffer to file
+            do {
+                try audioFile?.write(from: outputBuffer)
+            } catch {
+                Logger.audioRecorder.error("❌ Failed to write resampled audio buffer: \(error.localizedDescription)")
+            }
         }
     }
     

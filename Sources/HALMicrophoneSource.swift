@@ -4,125 +4,179 @@ import AudioUnit
 import CoreAudio
 import os.log
 
-/// Direct HAL AudioUnit microphone source that binds to specific hardware devices
-/// without triggering system default input changes or Bluetooth HFP activation
+/// True HAL AudioUnit direct input that completely bypasses AVAudioEngine.inputNode
+/// and system default device behavior - no Bluetooth HFP activation
 final class HALMicrophoneSource {
-    private let engine = AVAudioEngine()
-    private var halUnit: AVAudioNode?
-    private var audioUnit: AudioUnit?
-    private var format: AVAudioFormat?
+    fileprivate var audioUnit: AudioUnit?
     private var isRunning = false
+    private var isPrewarmed = false
     
-    /// Audio level monitoring for real-time UI updates
-    private weak var levelDelegate: AudioLevelDelegate?
+    /// Audio format for processing (detected from device)
+    private var sampleRate: Double = 48000  // Default, will be detected
+    private let channels: UInt32 = 1
+    private var nativeSampleRate: Double = 48000
     
     /// Current device information
     private var currentDeviceID: AudioDeviceID = 0
     private var currentDeviceName: String = ""
+    private var prewarmDeviceID: AudioDeviceID = 0
+    
+    /// Recording callbacks (pre-allocated during prewarming)
+    private var recordingHandler: ((UnsafePointer<Float>, Int) -> Void)?
+    private var levelHandler: ((Float) -> Void)?
+    private var activeRecordingHandler: ((UnsafePointer<Float>, Int) -> Void)?
+    private var activeLevelHandler: ((Float) -> Void)?
+    
+    /// Audio buffer for processing
+    private var audioBuffer: [Float] = []
+    private let bufferSize = 512
     
     init() {
-        Logger.audioRecorder.infoDev("🎤 HALMicrophoneSource initialized")
+        Logger.audioRecorder.infoDev("🎤 HALMicrophoneSource initialized (direct HAL AudioUnit)")
     }
     
-    /// Start recording with direct HAL AudioUnit binding to specified device
-    /// - Parameter deviceID: The AudioDeviceID to bind directly to
-    /// - Throws: Configuration or engine errors
-    func start(using deviceID: AudioDeviceID) throws {
+    /// Pre-create and pre-configure HAL AudioUnit for instant recording start
+    func prewarm(using deviceID: AudioDeviceID,
+                recordingHandler: @escaping (UnsafePointer<Float>, Int) -> Void,
+                levelHandler: @escaping (Float) -> Void) async {
+        guard !isPrewarmed else {
+            Logger.audioRecorder.infoDev("✅ HAL AudioUnit already pre-warmed")
+            return
+        }
+        
+        Logger.audioRecorder.infoDev("🔧 Pre-warming HAL AudioUnit with device ID: \(deviceID)...")
+        prewarmDeviceID = deviceID
+        
+        // Pre-set the callback handlers to avoid allocation during start
+        self.recordingHandler = recordingHandler
+        self.levelHandler = levelHandler
+        
+        do {
+            // Detect device native sample rate first
+            nativeSampleRate = detectNativeSampleRate(deviceID: deviceID)
+            sampleRate = nativeSampleRate
+            Logger.audioRecorder.infoDev("🔍 Detected native sample rate: \(nativeSampleRate)Hz for device \(deviceID)")
+            
+            // Create and configure HAL AudioUnit with native sample rate
+            try createHALAudioUnit(deviceID: deviceID)
+            
+            // Initialize the AudioUnit for prewarming (but don't start it)
+            let initResult = AudioUnitInitialize(audioUnit!)
+            guard initResult == noErr else {
+                throw HALError.initializationFailed(initResult)
+            }
+            
+            isPrewarmed = true
+            Logger.audioRecorder.infoDev("🚀 HAL AudioUnit pre-warmed and initialized successfully with \(getDeviceName(deviceID) ?? "Unknown Device") at \(nativeSampleRate)Hz")
+        } catch {
+            Logger.audioRecorder.errorDev("⚠️ HAL AudioUnit pre-warming failed: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Start recording with direct HAL AudioUnit - optimized for speed
+    func start(using deviceID: AudioDeviceID, 
+               recordingHandler: @escaping (UnsafePointer<Float>, Int) -> Void,
+               levelHandler: @escaping (Float) -> Void) throws {
         guard !isRunning else {
             Logger.audioRecorder.infoDev("⚠️ HAL source already running")
             return
         }
         
-        Logger.audioRecorder.infoDev("🚀 Starting HAL AudioUnit with device ID: \(deviceID)")
         currentDeviceID = deviceID
+        currentDeviceName = getDeviceName(deviceID) ?? "Unknown Device"
         
-        // 1. Create and configure HAL Output AudioUnit
-        try createAndConfigureAudioUnit(deviceID: deviceID)
-        
-        // 2. Setup audio format (16kHz mono for consistent processing)
-        setupAudioFormat()
-        
-        // 3. Connect to AVAudioEngine pipeline
-        try connectToEngine()
-        
-        // 4. Start the engine
-        try engine.start()
-        
-        isRunning = true
-        Logger.audioRecorder.infoDev("✅ HAL AudioUnit started successfully with \(currentDeviceName)")
+        // Use pre-warmed AudioUnit if available and device matches
+        if isPrewarmed && prewarmDeviceID == deviceID {
+            // OPTIMIZED PATH: Just activate the pre-configured AudioUnit
+            Logger.audioRecorder.infoDev("🚀 Starting pre-warmed HAL AudioUnit with device ID: \(deviceID)")
+            
+            // Set active handlers (these should match pre-warmed ones)
+            activeRecordingHandler = recordingHandler
+            activeLevelHandler = levelHandler
+            
+            // Ultra-fast start: just start the AudioUnit
+            let startResult = AudioOutputUnitStart(audioUnit!)
+            guard startResult == noErr else {
+                throw HALError.startFailed(startResult)
+            }
+            
+            isRunning = true
+            Logger.audioRecorder.infoDev("✅ Pre-warmed HAL AudioUnit started with \(currentDeviceName)")
+        } else {
+            // FALLBACK PATH: create new AudioUnit (device changed or not pre-warmed)
+            Logger.audioRecorder.infoDev("🚀 Creating new HAL AudioUnit with device ID: \(deviceID) (not pre-warmed or device changed)")
+            
+            // Clean up any existing AudioUnit
+            if audioUnit != nil {
+                dispose()
+            }
+            
+            // Set handlers for new AudioUnit
+            self.recordingHandler = recordingHandler
+            self.levelHandler = levelHandler
+            activeRecordingHandler = recordingHandler
+            activeLevelHandler = levelHandler
+            
+            // Create and configure new HAL AudioUnit
+            try createHALAudioUnit(deviceID: deviceID)
+            
+            // Start the AudioUnit
+            AudioUnitInitialize(audioUnit!)
+            
+            let startResult = AudioOutputUnitStart(audioUnit!)
+            guard startResult == noErr else {
+                throw HALError.startFailed(startResult)
+            }
+            
+            isRunning = true
+            Logger.audioRecorder.infoDev("✅ New HAL AudioUnit started with \(currentDeviceName)")
+        }
     }
     
-    /// Stop the HAL AudioUnit and clean up resources
+    /// Stop the HAL AudioUnit (but keep it pre-warmed if possible)
     func stop() {
         guard isRunning else { return }
         
         Logger.audioRecorder.infoDev("🛑 Stopping HAL AudioUnit...")
         
-        // Remove tap if exists
-        if let halUnit = halUnit {
-            halUnit.removeTap(onBus: 0)
-        }
-        
-        // Stop and reset engine
-        if engine.isRunning {
-            engine.stop()
-        }
-        engine.reset()
-        
-        // Cleanup AudioUnit
         if let audioUnit = audioUnit {
+            AudioOutputUnitStop(audioUnit)
+            
+            // Keep AudioUnit pre-warmed (don't uninitialize/dispose)
+            if isPrewarmed {
+                Logger.audioRecorder.infoDev("🔧 Keeping HAL AudioUnit pre-warmed for next recording")
+            }
+        }
+        
+        isRunning = false
+        activeRecordingHandler = nil
+        activeLevelHandler = nil
+        
+        Logger.audioRecorder.infoDev("✅ HAL AudioUnit stopped (pre-warmed state preserved)")
+    }
+    
+    /// Completely dispose of the HAL AudioUnit (called on deinit)
+    func dispose() {
+        Logger.audioRecorder.infoDev("🧹 Disposing HAL AudioUnit...")
+        
+        if let audioUnit = audioUnit {
+            if isRunning {
+                AudioOutputUnitStop(audioUnit)
+            }
             AudioUnitUninitialize(audioUnit)
             AudioComponentInstanceDispose(audioUnit)
         }
         
-        // Reset state
-        halUnit = nil
         audioUnit = nil
         isRunning = false
+        isPrewarmed = false
         currentDeviceID = 0
         currentDeviceName = ""
+        prewarmDeviceID = 0
+        recordingHandler = nil
+        levelHandler = nil
         
-        Logger.audioRecorder.infoDev("✅ HAL AudioUnit stopped and cleaned up")
-    }
-    
-    /// Install audio tap for recording and level monitoring
-    /// - Parameters:
-    ///   - bufferSize: Audio buffer size for processing
-    ///   - recordingHandler: Callback for audio data to be recorded
-    ///   - levelHandler: Callback for real-time audio level updates
-    func installTap(bufferSize: AVAudioFrameCount = 128,
-                   recordingHandler: @escaping (AVAudioPCMBuffer, AVAudioTime) -> Void,
-                   levelHandler: @escaping (Float) -> Void) {
-        guard let halUnit = halUnit,
-              let format = format else {
-            Logger.audioRecorder.error("❌ Cannot install tap - HAL unit not configured")
-            return
-        }
-        
-        halUnit.installTap(onBus: 0, bufferSize: bufferSize, format: format) { buffer, time in
-            // Handle recording
-            recordingHandler(buffer, time)
-            
-            // Calculate and report audio level
-            if let channelData = buffer.floatChannelData?[0] {
-                let frameCount = Int(buffer.frameLength)
-                let level = self.calculateAudioLevel(channelData: channelData, frameCount: frameCount)
-                levelHandler(level)
-            }
-        }
-        
-        Logger.audioRecorder.infoDev("🎧 Audio tap installed on HAL unit")
-    }
-    
-    /// Remove audio tap
-    func removeTap() {
-        halUnit?.removeTap(onBus: 0)
-        Logger.audioRecorder.infoDev("🎧 Audio tap removed from HAL unit")
-    }
-    
-    /// Get the AVAudioEngine for external access if needed
-    var audioEngine: AVAudioEngine {
-        return engine
+        Logger.audioRecorder.infoDev("✅ HAL AudioUnit disposed completely")
     }
     
     /// Check if the source is currently running
@@ -130,14 +184,23 @@ final class HALMicrophoneSource {
         return isRunning
     }
     
-    /// Get current audio format
-    var audioFormat: AVAudioFormat? {
-        return format
-    }
-    
     /// Get information about currently bound device
     var deviceInfo: (id: AudioDeviceID, name: String) {
         return (currentDeviceID, currentDeviceName)
+    }
+    
+    /// Check if HAL AudioUnit is pre-warmed
+    var prewarmed: Bool {
+        return isPrewarmed
+    }
+    
+    /// Get the native audio format being used
+    var nativeAudioFormat: AVAudioFormat? {
+        return AVAudioFormat(standardFormatWithSampleRate: nativeSampleRate, channels: channels)
+    }
+    
+    deinit {
+        dispose()
     }
 }
 
@@ -145,15 +208,11 @@ final class HALMicrophoneSource {
 
 private extension HALMicrophoneSource {
     
-    /// Create and configure HAL Output AudioUnit for input capture
-    func createAndConfigureAudioUnit(deviceID: AudioDeviceID) throws {
-        Logger.audioRecorder.infoDev("🔧 Creating HAL Output AudioUnit...")
+    /// Create pure HAL AudioUnit for input capture - no AVAudioEngine
+    func createHALAudioUnit(deviceID: AudioDeviceID) throws {
+        Logger.audioRecorder.infoDev("🔧 Creating HAL AudioUnit for device \(deviceID)...")
         
-        // 1. Get device name for logging
-        currentDeviceName = getDeviceName(deviceID) ?? "Unknown Device"
-        Logger.audioRecorder.infoDev("📱 Target device: \(currentDeviceName) (ID: \(deviceID))")
-        
-        // 2. Create AudioComponent description for HAL Output
+        // 1. Create AudioComponent description for HAL Output
         var componentDescription = AudioComponentDescription(
             componentType: kAudioUnitType_Output,
             componentSubType: kAudioUnitSubType_HALOutput,
@@ -162,20 +221,20 @@ private extension HALMicrophoneSource {
             componentFlagsMask: 0
         )
         
-        // 3. Find and instantiate the component
+        // 2. Find and instantiate the component
         guard let component = AudioComponentFindNext(nil, &componentDescription) else {
-            throw HALMicrophoneError.componentNotFound
+            throw HALError.componentNotFound
         }
         
         var unit: AudioUnit?
         let status = AudioComponentInstanceNew(component, &unit)
         guard status == noErr, let audioUnit = unit else {
-            throw HALMicrophoneError.instantiationFailed(status)
+            throw HALError.instantiationFailed(status)
         }
         
         self.audioUnit = audioUnit
         
-        // 4. Enable input (scope 1), disable output (scope 0)
+        // 3. Enable input (scope 1), disable output (scope 0)
         var enableInput: UInt32 = 1
         var disableOutput: UInt32 = 0
         
@@ -189,7 +248,7 @@ private extension HALMicrophoneSource {
         )
         
         guard result == noErr else {
-            throw HALMicrophoneError.configurationFailed("Failed to enable input", result)
+            throw HALError.configurationFailed("Failed to enable input", result)
         }
         
         result = AudioUnitSetProperty(
@@ -202,10 +261,10 @@ private extension HALMicrophoneSource {
         )
         
         guard result == noErr else {
-            throw HALMicrophoneError.configurationFailed("Failed to disable output", result)
+            throw HALError.configurationFailed("Failed to disable output", result)
         }
         
-        // 5. CRITICAL: Bind to specific device BEFORE any engine operations
+        // 4. CRITICAL: Bind to specific device BEFORE any other operations
         var targetDevice = deviceID
         result = AudioUnitSetProperty(
             audioUnit,
@@ -217,78 +276,77 @@ private extension HALMicrophoneSource {
         )
         
         guard result == noErr else {
-            throw HALMicrophoneError.configurationFailed("Failed to bind to device \(deviceID)", result)
+            throw HALError.configurationFailed("Failed to bind to device \(deviceID)", result)
         }
         
-        // 6. Initialize the AudioUnit
-        result = AudioUnitInitialize(audioUnit)
-        guard result == noErr else {
-            throw HALMicrophoneError.initializationFailed(result)
-        }
+        // 5. Set up audio format (16kHz mono)
+        var streamFormat = AudioStreamBasicDescription(
+            mSampleRate: sampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved,
+            mBytesPerPacket: 4,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: 4,
+            mChannelsPerFrame: channels,
+            mBitsPerChannel: 32,
+            mReserved: 0
+        )
         
-        // Store the initialized AudioUnit for cleanup
-        // Note: We'll actually use the engine's inputNode in connectToEngine()
-        
-        Logger.audioRecorder.infoDev("✅ HAL AudioUnit configured and bound to \(currentDeviceName)")
-    }
-    
-    /// Setup audio format for consistent processing
-    func setupAudioFormat() {
-        // Use 16kHz mono format for consistent whisper processing
-        format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)
-        Logger.audioRecorder.infoDev("🎵 Audio format configured: 16kHz mono")
-    }
-    
-    /// Connect HAL AudioUnit to AVAudioEngine pipeline
-    /// For now, we'll use a simpler approach with AVAudioEngine.inputNode but with explicit device setting
-    func connectToEngine() throws {
-        guard let format = format else {
-            throw HALMicrophoneError.configurationFailed("Audio format not ready", -1)
-        }
-        
-        // Set the device on the engine's input node AudioUnit
-        let inputNode = engine.inputNode
-        let inputAudioUnit = inputNode.audioUnit!
-        
-        var deviceID = currentDeviceID
-        let result = AudioUnitSetProperty(
-            inputAudioUnit,
-            kAudioOutputUnitProperty_CurrentDevice,
-            kAudioUnitScope_Global,
-            0,
-            &deviceID,
-            UInt32(MemoryLayout<AudioDeviceID>.size)
+        result = AudioUnitSetProperty(
+            audioUnit,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Output,
+            1, // Input bus output
+            &streamFormat,
+            UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
         )
         
         guard result == noErr else {
-            throw HALMicrophoneError.configurationFailed("Failed to set device on input node", result)
+            throw HALError.configurationFailed("Failed to set stream format", result)
         }
         
-        // Store reference to input node as our "halUnit"
-        halUnit = inputNode
+        // 6. Set up input callback for audio data
+        var inputCallbackStruct = AURenderCallbackStruct(
+            inputProc: audioInputCallback,
+            inputProcRefCon: Unmanaged.passUnretained(self).toOpaque()
+        )
         
-        // Prepare engine
-        engine.prepare()
+        result = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_SetInputCallback,
+            kAudioUnitScope_Global,
+            0,
+            &inputCallbackStruct,
+            UInt32(MemoryLayout<AURenderCallbackStruct>.size)
+        )
         
-        Logger.audioRecorder.infoDev("✅ Input node configured with device ID \(currentDeviceID)")
+        guard result == noErr else {
+            throw HALError.configurationFailed("Failed to set input callback", result)
+        }
+        
+        Logger.audioRecorder.infoDev("✅ HAL AudioUnit configured and bound to \(getDeviceName(deviceID) ?? "Unknown Device")")
     }
     
-    /// Calculate normalized audio level from buffer data
-    func calculateAudioLevel(channelData: UnsafePointer<Float>, frameCount: Int) -> Float {
-        // Calculate RMS using basic math (no vDSP dependency for now)
-        var sum: Float = 0.0
-        for i in 0..<frameCount {
-            let sample = channelData[i]
-            sum += sample * sample
+    /// Detect the native sample rate of an audio device
+    func detectNativeSampleRate(deviceID: AudioDeviceID) -> Double {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        
+        var sampleRate: Float64 = 48000.0  // Default fallback
+        var size = UInt32(MemoryLayout<Float64>.size)
+        
+        let result = AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &sampleRate)
+        
+        if result == noErr {
+            Logger.audioRecorder.infoDev("🎵 Device \(deviceID) native sample rate: \(sampleRate)Hz")
+            return sampleRate
+        } else {
+            Logger.audioRecorder.infoDev("⚠️ Could not detect sample rate for device \(deviceID), using 48kHz default")
+            return 48000.0
         }
-        
-        let rms = sqrt(sum / Float(frameCount))
-        
-        // Convert to dB and normalize to 0.0-1.0 range
-        let db = 20 * log10(max(rms, 0.000001)) // Avoid log(0)
-        let normalizedLevel = max(0.0, min(1.0, (db + 60) / 60)) // -60dB to 0dB range
-        
-        return normalizedLevel
     }
     
     /// Get human-readable device name for logging
@@ -310,15 +368,95 @@ private extension HALMicrophoneSource {
         
         return cfString as String
     }
+    
+    /// Process audio input data from HAL AudioUnit
+    func processAudioInput(_ audioBuffer: UnsafePointer<Float>, frameCount: Int) {
+        // Call active recording handler (optimized - no optional chaining)
+        if let handler = activeRecordingHandler {
+            handler(audioBuffer, frameCount)
+        }
+        
+        // Calculate and report audio level (optimized - no optional chaining)
+        if let handler = activeLevelHandler {
+            let level = calculateAudioLevel(channelData: audioBuffer, frameCount: frameCount)
+            handler(level)
+        }
+    }
+    
+    /// Calculate normalized audio level from buffer data
+    func calculateAudioLevel(channelData: UnsafePointer<Float>, frameCount: Int) -> Float {
+        var sum: Float = 0.0
+        for i in 0..<frameCount {
+            let sample = channelData[i]
+            sum += sample * sample
+        }
+        
+        let rms = sqrt(sum / Float(frameCount))
+        
+        // Convert to dB and normalize to 0.0-1.0 range
+        let db = 20 * log10(max(rms, 0.000001)) // Avoid log(0)
+        let normalizedLevel = max(0.0, min(1.0, (db + 60) / 60)) // -60dB to 0dB range
+        
+        return normalizedLevel
+    }
+}
+
+// MARK: - Audio Callback
+
+/// C callback function for audio input
+private func audioInputCallback(
+    inRefCon: UnsafeMutableRawPointer,
+    ioActionFlags: UnsafeMutablePointer<AudioUnitRenderActionFlags>,
+    inTimeStamp: UnsafePointer<AudioTimeStamp>,
+    inBusNumber: UInt32,
+    inNumberFrames: UInt32,
+    ioData: UnsafeMutablePointer<AudioBufferList>?
+) -> OSStatus {
+    
+    let source = Unmanaged<HALMicrophoneSource>.fromOpaque(inRefCon).takeUnretainedValue()
+    
+    // Allocate buffer for audio data
+    var bufferList = AudioBufferList(
+        mNumberBuffers: 1,
+        mBuffers: AudioBuffer(
+            mNumberChannels: 1,
+            mDataByteSize: inNumberFrames * 4, // 4 bytes per float
+            mData: nil
+        )
+    )
+    
+    // Get audio data from the AudioUnit
+    let status = AudioUnitRender(
+        source.audioUnit!,
+        ioActionFlags,
+        inTimeStamp,
+        inBusNumber,
+        inNumberFrames,
+        &bufferList
+    )
+    
+    guard status == noErr else {
+        Logger.audioRecorder.error("❌ AudioUnitRender failed: \(status)")
+        return status
+    }
+    
+    // Process the audio data
+    if let audioData = bufferList.mBuffers.mData {
+        let floatPointer = audioData.bindMemory(to: Float.self, capacity: Int(inNumberFrames))
+        source.processAudioInput(floatPointer, frameCount: Int(inNumberFrames))
+    }
+    
+    return noErr
 }
 
 // MARK: - Error Types
 
-enum HALMicrophoneError: Error, LocalizedError {
+enum HALError: Error, LocalizedError {
     case componentNotFound
     case instantiationFailed(OSStatus)
     case configurationFailed(String, OSStatus)
     case initializationFailed(OSStatus)
+    case startFailed(OSStatus)
     
     var errorDescription: String? {
         switch self {
@@ -330,12 +468,8 @@ enum HALMicrophoneError: Error, LocalizedError {
             return "\(message) (status: \(status))"
         case .initializationFailed(let status):
             return "Failed to initialize AudioUnit (status: \(status))"
+        case .startFailed(let status):
+            return "Failed to start AudioUnit (status: \(status))"
         }
     }
-}
-
-// MARK: - Audio Level Delegate
-
-protocol AudioLevelDelegate: AnyObject {
-    func audioLevelChanged(_ level: Float)
 }
