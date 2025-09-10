@@ -21,7 +21,32 @@ class AudioDeviceManager: ObservableObject {
         deviceSelectionLock.lock()
         defer { deviceSelectionLock.unlock() }
         
-        if let cachedDeviceID = selectedDeviceID {
+        // 🚀 ALWAYS check user preference first (hot-plug support)
+        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
+        
+        if !selectedMicrophoneID.isEmpty {
+            // Try to find user preferred device
+            if let preferredDeviceID = findAudioDeviceID(for: selectedMicrophoneID) {
+                // User preference available! Use it and update cache
+                if preferredDeviceID != selectedDeviceID {
+                    Logger.audioDeviceManager.infoDev("🎯 User preferred device now available: \(getDeviceName(deviceID: preferredDeviceID) ?? "Unknown") (ID: \(preferredDeviceID))")
+                    selectedDeviceID = preferredDeviceID
+                }
+                return preferredDeviceID
+            }
+            // User preference not available, check if we have a valid cached fallback
+            else if let cachedDeviceID = selectedDeviceID {
+                if isValidInputDevice(deviceID: cachedDeviceID) {
+                    Logger.audioDeviceManager.infoDev("🎤 User preferred device unavailable, using cached fallback: \(self.getDeviceName(deviceID: cachedDeviceID) ?? "Unknown") (ID: \(cachedDeviceID))")
+                    return cachedDeviceID
+                } else {
+                    Logger.audioDeviceManager.infoDev("⚠️ Cached fallback device no longer valid, reselecting...")
+                    selectedDeviceID = nil
+                }
+            }
+        }
+        // No user preference OR preference unavailable, select best available
+        else if let cachedDeviceID = selectedDeviceID {
             if isValidInputDevice(deviceID: cachedDeviceID) {
                 Logger.audioDeviceManager.infoDev("🎤 Using cached input device: \(self.getDeviceName(deviceID: cachedDeviceID) ?? "Unknown") (ID: \(cachedDeviceID))")
                 return cachedDeviceID
@@ -56,20 +81,8 @@ class AudioDeviceManager: ObservableObject {
     }
     
     private func selectBestInputDevice() throws -> AudioDeviceID {
-        // Check if user has selected a specific device in settings
-        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
-        
-        if !selectedMicrophoneID.isEmpty {
-            Logger.audioDeviceManager.infoDev("🎯 User selected device ID: '\(selectedMicrophoneID)'")
-            
-            // Try to find the corresponding AudioDeviceID for the selected AVCaptureDevice
-            if let audioDeviceID = findAudioDeviceID(for: selectedMicrophoneID) {
-                Logger.audioDeviceManager.infoDev("✅ Found corresponding AudioDeviceID: \(audioDeviceID)")
-                return audioDeviceID
-            } else {
-                Logger.audioDeviceManager.infoDev("⚠️ Could not find AudioDeviceID for selected device, falling back to system default")
-            }
-        }
+        // This function is now only called as final fallback when user preference unavailable
+        Logger.audioDeviceManager.infoDev("🔍 Selecting best available input device (fallback mode)")
         
         // Get system default device
         var systemDefaultID: AudioDeviceID = 0

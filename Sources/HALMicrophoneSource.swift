@@ -129,6 +129,12 @@ final class HALMicrophoneSource {
             }
             
             isRunning = true
+            
+            // 🚀 OPTIMIZATION: Update pre-warm state for next recording
+            isPrewarmed = true
+            prewarmDeviceID = deviceID
+            Logger.audioRecorder.infoDev("🔧 Updated pre-warm state to new device: \(currentDeviceName)")
+            
             Logger.audioRecorder.infoDev("✅ New HAL AudioUnit started with \(currentDeviceName)")
         }
     }
