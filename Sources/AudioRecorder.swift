@@ -198,7 +198,7 @@ class AudioRecorder: NSObject, ObservableObject {
             let inputFormat = inputNode.outputFormat(forBus: 0)
             
             // Install tap for BOTH recording AND level monitoring
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, time in
+            inputNode.installTap(onBus: 0, bufferSize: 128, format: inputFormat) { [weak self] buffer, time in
                 guard let self = self, self.isRecording else { return }
                 
                 // 1. Convert and write to file for recording
@@ -247,10 +247,19 @@ class AudioRecorder: NSObject, ObservableObject {
                 let db = 20 * log10(max(rms, 0.000001)) // Avoid log(0)
                 let normalizedLevel = max(0.0, min(1.0, (db + 60) / 60)) // -60dB to 0dB range
                 
+                // Log audio level timing (only when significant change)
+                if normalizedLevel > 0.1 {
+                    let audioProcessTime = CACurrentMediaTime()
+                    Logger.audioRecorder.infoDev("🎤 Audio level: \(String(format: "%.3f", normalizedLevel)) at \(String(format: "%.1f", audioProcessTime * 1000))ms")
+                }
+                
                 // Throttle UI updates to 60fps
                 let now = CACurrentMediaTime()
                 if now - self.lastLevelUpdateTime >= self.levelUpdateInterval {
+                    let uiDispatchTime = CACurrentMediaTime()
                     DispatchQueue.main.async {
+                        let uiExecuteTime = CACurrentMediaTime()
+                        Logger.audioRecorder.infoDev("📊 UI update dispatched at \(String(format: "%.1f", uiDispatchTime * 1000))ms, executed at \(String(format: "%.1f", uiExecuteTime * 1000))ms")
                         self.audioLevel = normalizedLevel
                         // MiniIndicator will be updated via Combine publisher
                     }
