@@ -71,6 +71,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Logger.app.infoDev("🚀 FluidVoice starting up...")
         
+        // Initialize crash reporting early - before anything else that might crash
+        CrashReporter.shared.initializeCrashReporting()
+        
         // Skip UI initialization in test environment
         let isTestEnvironment = NSClassFromString("XCTestCase") != nil
         if isTestEnvironment {
@@ -149,6 +152,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        
+        // Add crash logs menu item
+        let crashLogsItem = NSMenuItem(title: "Show Crash Logs", action: #selector(showCrashLogs), keyEquivalent: "")
+        menu.addItem(crashLogsItem)
+        
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
         
@@ -438,6 +447,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    @objc func showCrashLogs() {
+        Logger.app.infoDev("Show Crash Logs menu item selected")
+        CrashReporter.shared.showCrashLogsInFinder()
+    }
+    
     @objc private func screenConfigurationChanged() {
         // Reset the cached icon size when screen configuration changes
         AppSetupHelper.resetIconSizeCache()
@@ -473,6 +487,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Stop any active recording timeout
         recordingTimeout?.invalidate()
         recordingTimeout = nil
+        
+        // Cleanup crash reporter
+        CrashReporter.shared.cleanup()
         
         // Gracefully shutdown Parakeet daemon
         Task {

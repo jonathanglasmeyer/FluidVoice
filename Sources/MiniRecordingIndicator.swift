@@ -58,11 +58,7 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         // More smoothing for less jittery animation (70% new, 30% old)
         let smoothedLevel = (audioLevel * 0.3) + (level * 0.7)
         
-        // Log timing when significant level change occurs
-        if level > 0.1 {
-            let indicatorReceiveTime = CACurrentMediaTime()
-            Logger.miniIndicator.infoDev("🎯 Indicator received level: \(String(format: "%.3f", level)) -> \(String(format: "%.3f", smoothedLevel)) at \(String(format: "%.1f", indicatorReceiveTime * 1000))ms")
-        }
+        // Level logging removed for performance
         
         self.audioLevel = smoothedLevel
         
@@ -72,10 +68,7 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     
     private func updateBufferImmediately() {
         // Log immediate buffer updates when there's significant audio
-        if audioLevel > 0.1 {
-            let immediateUpdateTime = CACurrentMediaTime()
-            Logger.miniIndicator.infoDev("⚡ IMMEDIATE Buffer update: adding \(String(format: "%.3f", audioLevel)) at \(String(format: "%.1f", immediateUpdateTime * 1000))ms")
-        }
+        // Immediate update (logging disabled for performance)
         
         // Shift buffer right and add current level at the beginning (immediate response)
         audioLevelBuffer.removeLast()
@@ -90,11 +83,7 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
         bufferUpdateTimer = Timer.scheduledTimer(withTimeInterval: bufferUpdateInterval, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
-            // Log buffer updates when there's significant audio
-            if self.audioLevel > 0.1 {
-                let bufferUpdateTime = CACurrentMediaTime()
-                Logger.miniIndicator.infoDev("📊 Buffer update: adding \(String(format: "%.3f", self.audioLevel)) at \(String(format: "%.1f", bufferUpdateTime * 1000))ms")
-            }
+            // Buffer updates (logging disabled for performance)
             
             // Shift buffer right and add current level at the beginning (immediate response)
             self.audioLevelBuffer.removeLast()

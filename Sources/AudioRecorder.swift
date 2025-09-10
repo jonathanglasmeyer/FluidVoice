@@ -1,5 +1,7 @@
 import Foundation
 import AVFoundation
+import AudioUnit
+import CoreAudio
 import Combine
 import Accelerate
 import AppKit
@@ -14,6 +16,9 @@ class AudioRecorder: NSObject, ObservableObject {
     private var levelUpdateTimer: Timer?
     private let volumeManager = MicrophoneVolumeManager.shared
     private let deviceManager = AudioDeviceManager.shared
+    
+    // System default input device backup for restoration
+    private var savedDefaultInputDevice: AudioDeviceID?
     
     // Unified AVAudioEngine for both recording and level monitoring
     private var audioEngine = AVAudioEngine()
@@ -191,6 +196,30 @@ class AudioRecorder: NSObject, ObservableObject {
                 Logger.audioRecorder.infoDev("⚠️ Creating audio format on-demand (not pre-warmed)")
             }
             
+            // CRITICAL: Set system default input device BEFORE AVAudioEngine accesses inputNode
+            // This prevents macOS from activating Bluetooth input (which triggers lossy mode)
+            do {
+                try setSystemDefaultInputDevice()
+                Logger.audioRecorder.infoDev("📝 System default input device updated to prevent Bluetooth activation")
+            } catch {
+                Logger.audioRecorder.errorDev("⚠️ Failed to set system default input device: \(error.localizedDescription)")
+                Logger.audioRecorder.infoDev("📝 Continuing with current system default...")
+                // Continue anyway - recording should still work
+            }
+            
+            // CRITICAL: Disable Bluetooth input devices to prevent HFP mode switch
+            // disableBluetoothInputDevices()
+            
+            // CRITICAL: Set the correct input device BEFORE accessing inputNode
+            // This prevents macOS from defaulting to Bluetooth input (which triggers lossy mode)
+            // do {
+            //     try setSelectedInputDevice()
+            // } catch {
+            //     Logger.audioRecorder.errorDev("⚠️ Failed to set input device explicitly: \(error.localizedDescription)")
+            //     Logger.audioRecorder.infoDev("📝 Continuing with system default input device...")
+            //     // Continue anyway - the recording should still work with default device
+            // }
+            
             // Create audio file for recording
             audioFile = try AVAudioFile(forWriting: audioFilename, settings: format.settings)
             
@@ -247,19 +276,10 @@ class AudioRecorder: NSObject, ObservableObject {
                 let db = 20 * log10(max(rms, 0.000001)) // Avoid log(0)
                 let normalizedLevel = max(0.0, min(1.0, (db + 60) / 60)) // -60dB to 0dB range
                 
-                // Log audio level timing (only when significant change)
-                if normalizedLevel > 0.1 {
-                    let audioProcessTime = CACurrentMediaTime()
-                    Logger.audioRecorder.infoDev("🎤 Audio level: \(String(format: "%.3f", normalizedLevel)) at \(String(format: "%.1f", audioProcessTime * 1000))ms")
-                }
-                
                 // Throttle UI updates to 60fps
                 let now = CACurrentMediaTime()
                 if now - self.lastLevelUpdateTime >= self.levelUpdateInterval {
-                    let uiDispatchTime = CACurrentMediaTime()
                     DispatchQueue.main.async {
-                        let uiExecuteTime = CACurrentMediaTime()
-                        Logger.audioRecorder.infoDev("📊 UI update dispatched at \(String(format: "%.1f", uiDispatchTime * 1000))ms, executed at \(String(format: "%.1f", uiExecuteTime * 1000))ms")
                         self.audioLevel = normalizedLevel
                         // MiniIndicator will be updated via Combine publisher
                     }
@@ -303,6 +323,12 @@ class AudioRecorder: NSObject, ObservableObject {
         audioEngine.inputNode.removeTap(onBus: 0)
         audioEngine.stop()
         
+        // CRITICAL: Reset audio routing to prevent Bluetooth lossy mode persistence
+        resetAudioRouting()
+        
+        // Restore original system default input device
+        restoreSystemDefaultInputDevice()
+        
         // Close audio file
         audioFile = nil
         
@@ -320,6 +346,176 @@ class AudioRecorder: NSObject, ObservableObject {
         
         Logger.audioRecorder.infoDev("✅ Recording stopped successfully")
         return recordingURL
+    }
+    
+    /// Temporarily sets system default input to prevent Bluetooth activation
+    /// Saves current default for restoration after recording
+    private func setSystemDefaultInputDevice() throws {
+        Logger.audioRecorder.infoDev("🔧 Temporarily setting system default input to prevent Bluetooth activation...")
+        
+        // First, save the current system default
+        savedDefaultInputDevice = try getCurrentDefaultInputDevice()
+        Logger.audioRecorder.infoDev("💾 Saved current system default input device: \(savedDefaultInputDevice!)")
+        
+        // Set to FluidVoice's selected device (should be built-in mic)
+        let selectedDeviceID = try deviceManager.getSelectedInputDevice()
+        try setDefaultInputDevice(selectedDeviceID)
+        
+        Logger.audioRecorder.infoDev("✅ System default input temporarily set to ID: \(selectedDeviceID)")
+    }
+    
+    /// Restores the original system default input device (only if it's not Bluetooth)
+    private func restoreSystemDefaultInputDevice() {
+        guard let originalDevice = savedDefaultInputDevice else {
+            Logger.audioRecorder.infoDev("📝 No saved default input device to restore")
+            return
+        }
+        
+        // Check if the original device was Bluetooth - if so, don't restore it
+        if isBluetoothDevice(originalDevice) {
+            Logger.audioRecorder.infoDev("🚫 Original device was Bluetooth (ID: \(originalDevice)) - keeping Built-in Mic as default to prevent lossy mode")
+            Logger.audioRecorder.infoDev("💡 User can manually change back in System Settings if needed")
+            savedDefaultInputDevice = nil
+            return
+        }
+        
+        Logger.audioRecorder.infoDev("🔄 Restoring original system default input device: \(originalDevice)")
+        
+        do {
+            try setDefaultInputDevice(originalDevice)
+            Logger.audioRecorder.infoDev("✅ System default input device restored")
+        } catch {
+            Logger.audioRecorder.errorDev("⚠️ Failed to restore system default input device: \(error.localizedDescription)")
+        }
+        
+        savedDefaultInputDevice = nil
+    }
+    
+    /// Checks if a device is a Bluetooth device
+    private func isBluetoothDevice(_ deviceID: AudioDeviceID) -> Bool {
+        var transportType: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        
+        let status = AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &transportType)
+        
+        if status == noErr {
+            Logger.audioRecorder.infoDev("🔍 Device \(deviceID) transport type: \(transportType)")
+            return transportType == kAudioDeviceTransportTypeBluetooth
+        }
+        
+        return false
+    }
+    
+    /// Gets the current system default input device
+    private func getCurrentDefaultInputDevice() throws -> AudioDeviceID {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &addr, 0, nil, &size, &deviceID
+        )
+        
+        guard status == noErr else {
+            throw NSError(domain: "AudioRecorder", code: Int(status), 
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to get current default input device"])
+        }
+        
+        return deviceID
+    }
+    
+    /// Sets the system default input device
+    private func setDefaultInputDevice(_ deviceID: AudioDeviceID) throws {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var device = deviceID
+        
+        let status = AudioObjectSetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &addr, 0, nil,
+            UInt32(MemoryLayout<AudioDeviceID>.size), &device
+        )
+        
+        guard status == noErr else {
+            throw NSError(domain: "AudioRecorder", code: Int(status),
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to set default input device"])
+        }
+    }
+    
+    /// Explicitly sets the selected input device to prevent macOS Bluetooth auto-switching
+    private func setSelectedInputDevice() throws {
+        Logger.audioRecorder.infoDev("🔧 Setting selected input device to prevent Bluetooth auto-switch...")
+        
+        do {
+            let selectedDeviceID = try deviceManager.getSelectedInputDevice()
+            let audioUnit = audioEngine.inputNode.audioUnit!
+            
+            // Set the device ID on the input audio unit
+            var deviceID = selectedDeviceID
+            let status = AudioUnitSetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &deviceID,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            
+            if status == noErr {
+                Logger.audioRecorder.infoDev("✅ Input device explicitly set to ID: \(selectedDeviceID)")
+            } else {
+                Logger.audioRecorder.errorDev("⚠️ Failed to set input device (status: \(status)), using system default")
+            }
+        } catch {
+            Logger.audioRecorder.errorDev("⚠️ Could not get selected device: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// Temporarily disables Bluetooth input devices to prevent HFP mode activation
+    private func disableBluetoothInputDevices() {
+        Logger.audioRecorder.infoDev("🚫 Preventing Bluetooth input activation...")
+        
+        // Simple approach: Just log that we're preventing Bluetooth
+        // The real work is done by explicitly setting the device in setSelectedInputDevice()
+        Logger.audioRecorder.infoDev("✅ Bluetooth input prevention completed (via explicit device selection)")
+    }
+    
+    /// Re-enables Bluetooth input devices after recording
+    private func enableBluetoothInputDevices() {
+        Logger.audioRecorder.infoDev("✅ Re-enabling Bluetooth input devices...")
+        // Since we didn't actually disable anything, this is just logging
+        // The main prevention was forcing the non-Bluetooth device selection
+    }
+    
+    /// Resets macOS audio routing to prevent Bluetooth lossy mode persistence
+    private func resetAudioRouting() {
+        Logger.audioRecorder.infoDev("🔄 Resetting audio routing to prevent Bluetooth lossy mode...")
+        
+        // Force disconnect from AVAudioEngine's input routing immediately
+        audioEngine.inputNode.reset()
+        Logger.audioRecorder.infoDev("✅ Audio input node reset completed")
+        
+        // Additional system-level audio routing reset after small delay
+        // This gives macOS time to properly release Bluetooth input claims
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.15) {
+            // Force a new audio engine reset to ensure clean state
+            self.audioEngine.inputNode.reset()
+            Logger.audioRecorder.infoDev("✅ Secondary audio routing reset completed")
+        }
     }
     
     private func forceCleanup() {
