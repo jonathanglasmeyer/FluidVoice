@@ -196,13 +196,21 @@ class AudioRecorder: NSObject, ObservableObject {
                 Logger.audioRecorder.infoDev("⚠️ Creating audio format on-demand (not pre-warmed)")
             }
             
-            // CRITICAL: Set system default input device BEFORE AVAudioEngine accesses inputNode
-            // This prevents macOS from activating Bluetooth input (which triggers lossy mode)
+            // CRITICAL: Only switch system default if current default is Bluetooth
+            // This prevents unnecessary system changes for harmless devices
             do {
-                try setSystemDefaultInputDevice()
-                Logger.audioRecorder.infoDev("📝 System default input device updated to prevent Bluetooth activation")
+                let currentDefault = try getCurrentDefaultInputDevice()
+                if isBluetoothDevice(currentDefault) {
+                    Logger.audioRecorder.infoDev("🚫 Current system default is Bluetooth (ID: \(currentDefault)) - switching to prevent lossy mode")
+                    try setSystemDefaultInputDevice()
+                    Logger.audioRecorder.infoDev("📝 System default temporarily switched to prevent Bluetooth activation")
+                } else {
+                    Logger.audioRecorder.infoDev("✅ Current system default is not Bluetooth (ID: \(currentDefault)) - using AudioUnit property only")
+                    try setSelectedInputDevice()
+                    Logger.audioRecorder.infoDev("📝 AudioUnit input device set without system-level changes")
+                }
             } catch {
-                Logger.audioRecorder.errorDev("⚠️ Failed to set system default input device: \(error.localizedDescription)")
+                Logger.audioRecorder.errorDev("⚠️ Failed to set input device: \(error.localizedDescription)")
                 Logger.audioRecorder.infoDev("📝 Continuing with current system default...")
                 // Continue anyway - recording should still work
             }
@@ -326,8 +334,12 @@ class AudioRecorder: NSObject, ObservableObject {
         // CRITICAL: Reset audio routing to prevent Bluetooth lossy mode persistence
         resetAudioRouting()
         
-        // Restore original system default input device
-        restoreSystemDefaultInputDevice()
+        // Only restore system default if we actually switched it
+        if savedDefaultInputDevice != nil {
+            restoreSystemDefaultInputDevice()
+        } else {
+            Logger.audioRecorder.infoDev("📝 No system default to restore - used AudioUnit property only")
+        }
         
         // Close audio file
         audioFile = nil

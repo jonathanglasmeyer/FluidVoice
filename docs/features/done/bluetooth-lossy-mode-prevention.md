@@ -88,8 +88,51 @@ if isBluetoothDevice(originalDevice) {
 - **System Changes**: Robust error handling
 
 ## Status
-✅ **Completed** - Integrated in production build
+✅ **Completed** - Integrated in production build with selective switching logic
 🎯 **Result**: Bluetooth lossy mode eliminated during FluidVoice recording
+
+## Implementation Evolution
+
+### Fixed Implementation Issue (v2)
+
+**FIXED**: Updated implementation now uses selective switching logic.
+
+### Previous Problem (v1)
+Initial implementation **always** switched system default input device, even when unnecessary:
+
+```swift
+// v1 (overly aggressive):
+savedDefaultInputDevice = try getCurrentDefaultInputDevice()  // Always save
+try setDefaultInputDevice(selectedDeviceID)                   // Always switch
+
+// v2 (selective - IMPLEMENTED):
+let currentDefault = try getCurrentDefaultInputDevice()
+if isBluetoothDevice(currentDefault) {
+    // Only switch when current default is Bluetooth
+    savedDefaultInputDevice = currentDefault
+    try setDefaultInputDevice(selectedDeviceID)
+} else {
+    // No system-level switch needed - use AudioUnit property only
+    try setSelectedInputDevice()
+}
+```
+
+### Previous Impact (v1)
+- **Unnecessary system changes** when current default is harmless (USB mic, built-in mic, etc.)
+- **User system settings disrupted** even when Bluetooth workaround not needed
+- **Overly invasive** behavior for non-Bluetooth scenarios
+
+### Fixed Logic (v2)
+System default switching now **only** occurs when:
+1. Current system default input device is Bluetooth
+2. FluidVoice needs to use a different device
+
+For non-Bluetooth system defaults, explicit AudioUnit device setting is used instead.
+
+### Current Behavior (v2)
+- ✅ **Current Default: Bluetooth, FluidVoice: Built-in** → System switch (prevents HFP)
+- ✅ **Current Default: USB Mic, FluidVoice: USB Mic** → AudioUnit only (no system changes)
+- ✅ **Current Default: Built-in, FluidVoice: External** → AudioUnit only (no system changes)
 
 ## Future Considerations
 - Optional user preference for restoration behavior
