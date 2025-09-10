@@ -110,6 +110,7 @@ class HotKeyManager {
                 // Timer still running = QUICK TAP
                 cancelTapTimer()
                 fnKeyState = .toggleRecording
+                onHotKeyPressed()
                 Logger.app.infoDev("Fn key quick tap detected - entering toggle recording mode")
             } else {
                 // Timer already expired = it was actually a HOLD
