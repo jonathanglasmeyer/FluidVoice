@@ -108,15 +108,24 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     }
     
     private func createAndShowWindow() {
-        let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        // Use screen with mouse cursor for better multi-display support
+        let mouseLocation = NSEvent.mouseLocation
+        let currentScreen = NSScreen.screens.first { screen in
+            NSPointInRect(mouseLocation, screen.frame)
+        } ?? NSScreen.main
+        let screenFrame = currentScreen?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         
         // Position at bottom center of screen - pixel-snapped for crisp rendering
         let windowSize = NSSize(width: Self.containerWidth, 
                                height: Self.containerHeight)
-        let windowX = round(screenFrame.midX - windowSize.width / 2)
+        let centerX = screenFrame.midX
+        let halfWindowWidth = windowSize.width / 2
+        let calculatedX = centerX - halfWindowWidth
+        let windowX = round(calculatedX)
         let windowY = round(screenFrame.minY + Self.windowPadding)
         let windowFrame = NSRect(x: windowX, y: windowY, 
                                 width: round(windowSize.width), height: round(windowSize.height))
+        
         
         window = NSWindow(
             contentRect: windowFrame,

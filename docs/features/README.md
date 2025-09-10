@@ -8,6 +8,7 @@
 
 ## ✅ Completed Features
 
+- **[Audio Level Metering](done/audio-level-metering.md)** ✅ **DONE** - Real-time audio waveform visualization in mini recording indicator with <5ms latency
 - **[Uh Sound Removal](done/uh-sound-removal-feature.md)** ✅ **DONE** - Automatically remove filler sounds like 'uh', 'äh', 'um' from transcriptions
 - **[Fast Vocabulary Correction](done/fast-vocabulary-correction.md)** ✅ **DONE** - Ultra-fast privacy-first vocabulary correction (150x faster than LLMs)
 - **[Fn Key Hotkey Support](done/fn-key-feature.md)** ✅ **DONE** - Enable Function key combinations for global shortcuts
