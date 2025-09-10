@@ -20,10 +20,14 @@ class AudioRecorder: NSObject, ObservableObject {
     // System default input device backup for restoration
     private var savedDefaultInputDevice: AudioDeviceID?
     
-    // Unified AVAudioEngine for both recording and level monitoring
-    private var audioEngine = AVAudioEngine()
+    // True HAL AudioUnit direct input source (completely bypasses AVAudioEngine.inputNode)
+    private var halMicSource: HALMicrophoneSourceV2!
     private var audioFile: AVAudioFile?
     private var audioFormat: AVAudioFormat?
+    
+    // Audio data buffer for file writing
+    private var audioFileEngine = AVAudioEngine()
+    private var audioConverter: AVAudioConverter?
     
     // Pre-warmed AVAudioEngine for instant recording start
     private var isEnginePrewarmed: Bool = false
@@ -38,9 +42,12 @@ class AudioRecorder: NSObject, ObservableObject {
         checkMicrophonePermission()
         logSelectedMicrophone()
         
-        // Pre-warm AVAudioEngine for optimal latency (background thread, safe implementation)
+        // Initialize true HAL microphone source
+        halMicSource = HALMicrophoneSourceV2()
+        
+        // Pre-warm device manager for optimal latency
         Task {
-            await prewarmAudioEngine()
+            await prewarmDeviceManager()
         }
     }
     
@@ -48,13 +55,13 @@ class AudioRecorder: NSObject, ObservableObject {
         // AVAudioSession is not needed on macOS
     }
     
-    private func prewarmAudioEngine() async {
-        Logger.audioRecorder.infoDev("🔧 Starting AVAudioEngine pre-warming process...")
+    private func prewarmDeviceManager() async {
+        Logger.audioRecorder.infoDev("🔧 Starting device manager pre-warming process...")
         
         // Check if already pre-warmed on main actor
         let alreadyPrewarmed = await MainActor.run { isEnginePrewarmed }
         guard !alreadyPrewarmed else {
-            Logger.audioRecorder.infoDev("✅ AVAudioEngine already pre-warmed")
+            Logger.audioRecorder.infoDev("✅ Device manager already pre-warmed")
             return
         }
         
@@ -74,12 +81,12 @@ class AudioRecorder: NSObject, ObservableObject {
             }
             
             if !hasPermission {
-                Logger.audioRecorder.infoDev("🔧 Skipping engine pre-warming - no microphone permission after \(maxWaitTime)s")
+                Logger.audioRecorder.infoDev("🔧 Skipping device pre-warming - no microphone permission after \(maxWaitTime)s")
                 return
             }
         }
         
-        Logger.audioRecorder.infoDev("🔧 Permission confirmed - pre-warming AVAudioEngine configuration...")
+        Logger.audioRecorder.infoDev("🔧 Permission confirmed - pre-warming device manager...")
         
         // Pre-configure format (this is lightweight and doesn't crash)
         let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
@@ -93,13 +100,9 @@ class AudioRecorder: NSObject, ObservableObject {
             Logger.audioRecorder.infoDev("⚠️ Device manager pre-warm failed: \(error.localizedDescription)")
         }
         
-        // IMPORTANT: Do NOT call audioEngine.prepare() without configured nodes!
-        // This would crash with "inputNode != nullptr || outputNode != nullptr"
-        // Instead, mark as ready for fast configuration during startRecording()
-        
-        DispatchQueue.main.async { [weak self] in
+        await MainActor.run { [weak self] in
             self?.isEnginePrewarmed = true
-            Logger.audioRecorder.infoDev("🚀 AVAudioEngine pre-warmed successfully - format and device cached!")
+            Logger.audioRecorder.infoDev("🚀 Device manager pre-warmed successfully - format and device cached!")
         }
     }
     
@@ -166,12 +169,12 @@ class AudioRecorder: NSObject, ObservableObject {
             return false
         }
         
-        guard !audioEngine.isRunning else {
-            Logger.audioRecorder.error("❌ startRecording failed: Engine already running")
+        guard !halMicSource.running else {
+            Logger.audioRecorder.error("❌ startRecording failed: HAL source already running")
             return false
         }
         
-        Logger.audioRecorder.infoDev("🚀 Starting unified AVAudioEngine recording + level monitoring")
+        Logger.audioRecorder.infoDev("🚀 Starting HAL AudioUnit direct input recording")
         
         // Boost microphone volume if enabled
         if UserDefaults.standard.autoBoostMicrophoneVolume {
@@ -196,128 +199,54 @@ class AudioRecorder: NSObject, ObservableObject {
                 Logger.audioRecorder.infoDev("⚠️ Creating audio format on-demand (not pre-warmed)")
             }
             
-            // CRITICAL: Only switch system default if current default is Bluetooth
-            // This prevents unnecessary system changes for harmless devices
-            do {
-                let currentDefault = try getCurrentDefaultInputDevice()
-                if isBluetoothDevice(currentDefault) {
-                    Logger.audioRecorder.infoDev("🚫 Current system default is Bluetooth (ID: \(currentDefault)) - switching to prevent lossy mode")
-                    try setSystemDefaultInputDevice()
-                    Logger.audioRecorder.infoDev("📝 System default temporarily switched to prevent Bluetooth activation")
-                } else {
-                    Logger.audioRecorder.infoDev("✅ Current system default is not Bluetooth (ID: \(currentDefault)) - using AudioUnit property only")
-                    try setSelectedInputDevice()
-                    Logger.audioRecorder.infoDev("📝 AudioUnit input device set without system-level changes")
-                }
-            } catch {
-                Logger.audioRecorder.errorDev("⚠️ Failed to set input device: \(error.localizedDescription)")
-                Logger.audioRecorder.infoDev("📝 Continuing with current system default...")
-                // Continue anyway - recording should still work
-            }
-            
-            // CRITICAL: Disable Bluetooth input devices to prevent HFP mode switch
-            // disableBluetoothInputDevices()
-            
-            // CRITICAL: Set the correct input device BEFORE accessing inputNode
-            // This prevents macOS from defaulting to Bluetooth input (which triggers lossy mode)
-            // do {
-            //     try setSelectedInputDevice()
-            // } catch {
-            //     Logger.audioRecorder.errorDev("⚠️ Failed to set input device explicitly: \(error.localizedDescription)")
-            //     Logger.audioRecorder.infoDev("📝 Continuing with system default input device...")
-            //     // Continue anyway - the recording should still work with default device
-            // }
+            // Get selected device (no expensive system calls needed)
+            let selectedDeviceID = try deviceManager.getSelectedInputDevice()
+            Logger.audioRecorder.infoDev("📱 Using device ID: \(selectedDeviceID) (direct HAL binding)")
             
             // Create audio file for recording
             audioFile = try AVAudioFile(forWriting: audioFilename, settings: format.settings)
             
-            let inputNode = audioEngine.inputNode
-            let inputFormat = inputNode.outputFormat(forBus: 0)
-            
-            // Install tap for BOTH recording AND level monitoring
-            inputNode.installTap(onBus: 0, bufferSize: 128, format: inputFormat) { [weak self] buffer, time in
-                guard let self = self, self.isRecording else { return }
-                
-                // 1. Convert and write to file for recording
-                do {
-                    // Convert from input format (e.g., 44.1kHz stereo) to our target format (16kHz mono)
-                    guard let converter = AVAudioConverter(from: inputFormat, to: format) else {
-                        Logger.audioRecorder.error("❌ Could not create audio format converter")
-                        return
-                    }
-                    
-                    // Calculate output buffer size based on sample rate conversion
-                    let ratio = format.sampleRate / inputFormat.sampleRate
-                    let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
-                    
-                    guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: outputFrameCount) else {
-                        Logger.audioRecorder.error("❌ Could not create output buffer")
-                        return
-                    }
-                    
-                    var error: NSError?
-                    let status = converter.convert(to: outputBuffer, error: &error) { _, outStatus in
-                        outStatus.pointee = AVAudioConverterInputStatus.haveData
-                        return buffer
-                    }
-                    
-                    if status == .error {
-                        Logger.audioRecorder.error("❌ Audio conversion failed: \(error?.localizedDescription ?? "unknown error")")
-                        return
-                    }
-                    
-                    // Write the converted buffer to file
-                    try self.audioFile?.write(from: outputBuffer)
-                } catch {
-                    Logger.audioRecorder.error("❌ Failed to write audio buffer: \(error.localizedDescription)")
-                }
-                
-                // 2. Calculate real-time audio levels
-                guard let channelData = buffer.floatChannelData?[0] else { return }
-                let frameCount = Int(buffer.frameLength)
-                
-                // Calculate RMS using vDSP
-                var rms: Float = 0.0
-                vDSP_rmsqv(channelData, 1, &rms, vDSP_Length(frameCount))
-                
-                // Convert to normalized level (0.0-1.0)
-                let db = 20 * log10(max(rms, 0.000001)) // Avoid log(0)
-                let normalizedLevel = max(0.0, min(1.0, (db + 60) / 60)) // -60dB to 0dB range
-                
-                // Throttle UI updates to 60fps
-                let now = CACurrentMediaTime()
-                if now - self.lastLevelUpdateTime >= self.levelUpdateInterval {
-                    DispatchQueue.main.async {
-                        self.audioLevel = normalizedLevel
-                        // MiniIndicator will be updated via Combine publisher
-                    }
-                    self.lastLevelUpdateTime = now
-                }
-            }
-            
-            // Prepare engine (necessary step after installTap)
+            // Start true HAL AudioUnit with direct device binding (no AVAudioEngine involvement)
             let startTime = CACurrentMediaTime()
-            audioEngine.prepare()
-            let prepareTime = (CACurrentMediaTime() - startTime) * 1000
+            try halMicSource.start(using: selectedDeviceID,
+                recordingHandler: { [weak self] audioData, frameCount in
+                    guard let self = self, self.isRecording else { return }
+                    
+                    // Convert raw float data to AVAudioPCMBuffer for file writing
+                    self.writeAudioData(audioData, frameCount: frameCount)
+                },
+                levelHandler: { [weak self] level in
+                    guard let self = self else { return }
+                    
+                    // Throttle UI updates to 60fps
+                    let now = CACurrentMediaTime()
+                    if now - self.lastLevelUpdateTime >= self.levelUpdateInterval {
+                        DispatchQueue.main.async {
+                            self.audioLevel = level
+                            // MiniIndicator will be updated via Combine publisher
+                        }
+                        self.lastLevelUpdateTime = now
+                    }
+                }
+            )
+            let startDuration = (CACurrentMediaTime() - startTime) * 1000
             
             if isEnginePrewarmed {
-                Logger.audioRecorder.infoDev("✅ Engine prepared with pre-warmed config in \(String(format: "%.1f", prepareTime))ms")
+                Logger.audioRecorder.infoDev("✅ HAL source started with pre-warmed config in \(String(format: "%.1f", startDuration))ms")
             } else {
-                Logger.audioRecorder.infoDev("⚠️ Engine prepared on-demand in \(String(format: "%.1f", prepareTime))ms")
+                Logger.audioRecorder.infoDev("⚠️ HAL source started on-demand in \(String(format: "%.1f", startDuration))ms")
             }
-            
-            try audioEngine.start()
             
             DispatchQueue.main.async {
                 self.isRecording = true
             }
             
-            Logger.audioRecorder.infoDev("✅ Unified AVAudioEngine recording started: \(audioFilename.lastPathComponent)")
+            Logger.audioRecorder.infoDev("✅ HAL AudioUnit direct input started: \(audioFilename.lastPathComponent)")
             
             return true
             
         } catch {
-            Logger.audioRecorder.error("❌ Failed to start AVAudioEngine recording: \(error.localizedDescription)")
+            Logger.audioRecorder.error("❌ Failed to start HAL AudioUnit recording: \(error.localizedDescription)")
             return false
         }
     }
@@ -325,21 +254,12 @@ class AudioRecorder: NSObject, ObservableObject {
     func stopRecording() -> URL? {
         guard isRecording else { return nil }
         
-        Logger.audioRecorder.infoDev("🛑 Stopping AVAudioEngine recording...")
+        Logger.audioRecorder.infoDev("🛑 Stopping HAL AudioUnit recording...")
         
-        // Stop engine and remove tap
-        audioEngine.inputNode.removeTap(onBus: 0)
-        audioEngine.stop()
+        // Stop HAL source
+        halMicSource.stop()
         
-        // CRITICAL: Reset audio routing to prevent Bluetooth lossy mode persistence
-        resetAudioRouting()
-        
-        // Only restore system default if we actually switched it
-        if savedDefaultInputDevice != nil {
-            restoreSystemDefaultInputDevice()
-        } else {
-            Logger.audioRecorder.infoDev("📝 No system default to restore - used AudioUnit property only")
-        }
+        Logger.audioRecorder.infoDev("✅ HAL AudioUnit stopped cleanly (no system setting restoration needed)")
         
         // Close audio file
         audioFile = nil
@@ -356,7 +276,7 @@ class AudioRecorder: NSObject, ObservableObject {
             }
         }
         
-        Logger.audioRecorder.infoDev("✅ Recording stopped successfully")
+        Logger.audioRecorder.infoDev("✅ HAL AudioUnit recording stopped successfully")
         return recordingURL
     }
     
@@ -467,34 +387,10 @@ class AudioRecorder: NSObject, ObservableObject {
         }
     }
     
-    /// Explicitly sets the selected input device to prevent macOS Bluetooth auto-switching
+    /// Legacy method - no longer needed with HAL AudioUnit direct binding
     private func setSelectedInputDevice() throws {
-        Logger.audioRecorder.infoDev("🔧 Setting selected input device to prevent Bluetooth auto-switch...")
-        
-        do {
-            let selectedDeviceID = try deviceManager.getSelectedInputDevice()
-            let audioUnit = audioEngine.inputNode.audioUnit!
-            
-            // Set the device ID on the input audio unit
-            var deviceID = selectedDeviceID
-            let status = AudioUnitSetProperty(
-                audioUnit,
-                kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global,
-                0,
-                &deviceID,
-                UInt32(MemoryLayout<AudioDeviceID>.size)
-            )
-            
-            if status == noErr {
-                Logger.audioRecorder.infoDev("✅ Input device explicitly set to ID: \(selectedDeviceID)")
-            } else {
-                Logger.audioRecorder.errorDev("⚠️ Failed to set input device (status: \(status)), using system default")
-            }
-        } catch {
-            Logger.audioRecorder.errorDev("⚠️ Could not get selected device: \(error.localizedDescription)")
-            throw error
-        }
+        Logger.audioRecorder.infoDev("📝 Legacy setSelectedInputDevice() called - no longer needed with HAL direct binding")
+        // HAL AudioUnit handles device binding directly, no additional work needed
     }
     
     /// Temporarily disables Bluetooth input devices to prevent HFP mode activation
@@ -513,29 +409,17 @@ class AudioRecorder: NSObject, ObservableObject {
         // The main prevention was forcing the non-Bluetooth device selection
     }
     
-    /// Resets macOS audio routing to prevent Bluetooth lossy mode persistence
+    /// Legacy method - no longer needed with HAL AudioUnit direct binding
     private func resetAudioRouting() {
-        Logger.audioRecorder.infoDev("🔄 Resetting audio routing to prevent Bluetooth lossy mode...")
-        
-        // Force disconnect from AVAudioEngine's input routing immediately
-        audioEngine.inputNode.reset()
-        Logger.audioRecorder.infoDev("✅ Audio input node reset completed")
-        
-        // Additional system-level audio routing reset after small delay
-        // This gives macOS time to properly release Bluetooth input claims
-        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.15) {
-            // Force a new audio engine reset to ensure clean state
-            self.audioEngine.inputNode.reset()
-            Logger.audioRecorder.infoDev("✅ Secondary audio routing reset completed")
-        }
+        Logger.audioRecorder.infoDev("📝 Legacy resetAudioRouting() called - no longer needed with HAL direct binding")
+        // HAL AudioUnit cleanup is handled in halMicSource.stop(), no additional work needed
     }
     
     private func forceCleanup() {
         Logger.audioRecorder.infoDev("🧹 Force cleanup - stopping everything")
         
-        if audioEngine.isRunning {
-            audioEngine.inputNode.removeTap(onBus: 0)
-            audioEngine.stop()
+        if halMicSource.running {
+            halMicSource.stop()
         }
         
         audioFile = nil
@@ -557,6 +441,31 @@ class AudioRecorder: NSObject, ObservableObject {
         }
         
         recordingURL = nil
+    }
+    
+    /// Convert raw float audio data to AVAudioPCMBuffer and write to file
+    private func writeAudioData(_ audioData: UnsafePointer<Float>, frameCount: Int) {
+        guard let format = audioFormat else { return }
+        
+        // Create buffer with the audio data
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frameCount)) else {
+            Logger.audioRecorder.error("❌ Could not create PCM buffer")
+            return
+        }
+        
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        
+        // Copy audio data to buffer
+        if let channelData = buffer.floatChannelData?[0] {
+            channelData.update(from: audioData, count: frameCount)
+        }
+        
+        // Write to file
+        do {
+            try audioFile?.write(from: buffer)
+        } catch {
+            Logger.audioRecorder.error("❌ Failed to write audio buffer: \(error.localizedDescription)")
+        }
     }
     
     deinit {
