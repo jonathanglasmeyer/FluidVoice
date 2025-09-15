@@ -279,13 +279,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             if recorder.isRecording {
                 Logger.app.infoDev("🛑 Stopping recording (current state: recording)")
-                
+
                 // Cancel any existing timeout
                 recordingTimeout?.invalidate()
                 recordingTimeout = nil
-                
+
                 // Stop recording and process in background - no window needed!
                 updateMenuBarIcon(isRecording: false)
+
                 
                 // Stop recording and get the audio file
                 if let audioURL = recorder.stopRecording() {
@@ -335,7 +336,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMenuBarIcon(isRecording: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, let button = self.statusItem?.button else { return }
-            
+
             if isRecording {
                 self.startRecordingAnimation()
                 self.miniIndicator.show()
