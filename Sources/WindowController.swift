@@ -12,7 +12,7 @@ class WindowController {
     private var previousApp: NSRunningApplication?
     private let isTestEnvironment: Bool
     
-    // Thread-safe static property to share target app with ContentView
+    // Thread-safe static property to share target app with other components
     private static let storedTargetAppQueue = DispatchQueue(label: "com.fluidvoice.storedTargetApp", attributes: .concurrent)
     private static var _storedTargetApp: NSRunningApplication?
     
@@ -85,16 +85,56 @@ class WindowController {
             window.title = LocalizedStrings.Settings.title
             // Use normal window level so it doesn't float above other apps
             window.level = .normal
-            
+
+            // Configure window for glass effect
+            window.isOpaque = false
+            window.backgroundColor = NSColor.clear
+            window.hasShadow = true
+
             // Ensure window doesn't cause app to quit when closed
             window.isReleasedWhenClosed = false
             
-            // SettingsView disabled for Parakeet-only architecture - use simple placeholder
-            let settingsView = Text("Settings temporarily unavailable - using Parakeet-only mode")
-                .frame(width: 400, height: 200)
+            // Setup glass effect background
+            guard let content = window.contentView else { return }
+
+            // Add NSVisualEffectView for glass effect - only for sidebar area (left 250px)
+            let sidebarWidth: CGFloat = 250
+            let effectView = NSVisualEffectView(frame: NSRect(
+                x: 0,
+                y: 0,
+                width: sidebarWidth,
+                height: content.bounds.height
+            ))
+            effectView.autoresizingMask = [.height]  // Only resize height, keep width fixed
+            effectView.blendingMode = .behindWindow
+            effectView.state = .active
+            effectView.isEmphasized = false
+            effectView.material = .sidebar  // Use sidebar material for settings
+            content.addSubview(effectView, positioned: .below, relativeTo: nil)
+
+            // Restore SettingsView for Parakeet-only architecture
+            let settingsView = SettingsView()
+                .frame(width: 600, height: 500)
                 .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
 
-            window.contentView = NSHostingView(rootView: settingsView)
+            let hostingView = NSHostingView(rootView: settingsView)
+            hostingView.translatesAutoresizingMaskIntoConstraints = false
+
+            // Make hosting view transparent to allow glass effect through
+            if let layer = hostingView.layer {
+                layer.backgroundColor = NSColor.clear.cgColor
+            }
+
+            content.addSubview(hostingView)
+
+            // Layout constraints for hosting view
+            NSLayoutConstraint.activate([
+                hostingView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+                hostingView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+                hostingView.topAnchor.constraint(equalTo: content.topAnchor),
+                hostingView.bottomAnchor.constraint(equalTo: content.bottomAnchor)
+            ])
+
             window.center()
             
             // Set up delegate to handle window lifecycle

@@ -284,15 +284,17 @@ class AudioDeviceManager: ObservableObject {
         
         var cfString: CFString?
         var size = UInt32(MemoryLayout<CFString>.size)
-        
-        let status = AudioObjectGetPropertyData(
-            deviceID,
-            &address,
-            0,
-            nil,
-            &size,
-            &cfString
-        )
+
+        let status = withUnsafeMutablePointer(to: &cfString) { cfStringPtr in
+            AudioObjectGetPropertyData(
+                deviceID,
+                &address,
+                0,
+                nil,
+                &size,
+                cfStringPtr
+            )
+        }
         
         if status == noErr, let cfString = cfString {
             return cfString as String

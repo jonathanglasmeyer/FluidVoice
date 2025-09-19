@@ -205,15 +205,17 @@ class AudioDeviceInspector {
         
         var cfString: CFString?
         var size = UInt32(MemoryLayout<CFString>.size)
-        
-        let status = AudioObjectGetPropertyData(
-            deviceID,
-            &address,
-            0,
-            nil,
-            &size,
-            &cfString
-        )
+
+        let status = withUnsafeMutablePointer(to: &cfString) { cfStringPtr in
+            AudioObjectGetPropertyData(
+                deviceID,
+                &address,
+                0,
+                nil,
+                &size,
+                cfStringPtr
+            )
+        }
         
         if status == noErr, let cfString = cfString {
             return cfString as String
@@ -253,12 +255,13 @@ class AudioDeviceInspector {
         
         guard getStatus == noErr else { return false }
         
-        let buffers = UnsafeBufferPointer<AudioBuffer>(
-            start: &bufferList.pointee.mBuffers,
-            count: Int(bufferList.pointee.mNumberBuffers)
-        )
-        
-        return buffers.contains { $0.mNumberChannels > 0 }
+        return withUnsafePointer(to: &bufferList.pointee.mBuffers) { buffersPtr in
+            let buffers = UnsafeBufferPointer<AudioBuffer>(
+                start: buffersPtr,
+                count: Int(bufferList.pointee.mNumberBuffers)
+            )
+            return buffers.contains { $0.mNumberChannels > 0 }
+        }
     }
     
     private static func hasVolumeControl(deviceID: AudioDeviceID) -> Bool {
