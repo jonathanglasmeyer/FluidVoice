@@ -6,11 +6,17 @@ Simple, flat documentation structure - one file per feature/topic.
 
 ```
 docs/
-├── fn-key-feature.md       # Fn key hotkey support (research + spec)
-├── model-cleanup-feature.md # MLX removal and WhisperKit-only approach  
-├── user-stories.md         # User feedback and feature requests
-├── fn-key-research.md      # Technical research for Fn key implementation
-└── README.md              # This file
+├── setup-code-signing.md      # Development environment setup - code signing
+├── user-stories.md            # User feedback and feature requests
+├── fn-key-research.md         # Technical research for Fn key implementation
+├── cgevent-paste-research.md  # CGEvent paste behavior research
+├── performance-metrics.md     # App performance analysis
+├── permission-*.md            # Permission-related bug documentation
+├── ux-issues-summary.md       # UX issues and improvements
+├── features/                  # Feature documentation (done/in-progress)
+├── bugs/                      # Bug reports and fixes
+├── reports/                   # Session reports and progress
+└── README.md                  # This file
 ```
 
 ## Documentation Guidelines

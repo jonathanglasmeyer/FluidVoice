@@ -11,9 +11,7 @@ struct SettingsView: View {
     @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.openai
     @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
     @AppStorage("startAtLogin") private var startAtLogin = true
-    @AppStorage("immediateRecording") private var immediateRecording = false
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
-    @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
     @ObservedObject private var mlxModelManager = MLXModelManager.shared
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
@@ -120,10 +118,6 @@ struct SettingsView: View {
                     .accessibilityLabel("Automatically boost microphone volume")
                     .accessibilityHint("When enabled, microphone volume is temporarily increased to 100% during recording and restored afterward")
                 
-                Toggle("Play Completion Sound", isOn: $playCompletionSound)
-                    .toggleStyle(.switch)
-                    .accessibilityLabel("Play sound when transcription completes")
-                    .accessibilityHint("When enabled, plays a gentle sound when transcription is finished and text is pasted")
             }
             
             Section(header: Text("History")) {

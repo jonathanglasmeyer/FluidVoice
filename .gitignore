@@ -127,3 +127,6 @@ __pycache__
 # Environment
 .env
 .env.local
+
+# Build output logs
+build-output.txt

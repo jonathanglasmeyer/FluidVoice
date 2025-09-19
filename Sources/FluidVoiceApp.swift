@@ -265,71 +265,64 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         Logger.app.infoDev("🎹 Hotkey pressed! Starting handleHotkey()")
-        let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
-        Logger.app.infoDev("⚙️ immediateRecording = \(immediateRecording)")
-        
-        if immediateRecording {
-            // Mode 2: Hotkey Start & Stop
-            guard let recorder = audioRecorder else {
-                Logger.app.errorDev("❌ AudioRecorder not available for immediate recording")
-                return
-            }
-            
-            Logger.app.infoDev("✅ AudioRecorder is available: \(recorder)")
-            
-            if recorder.isRecording {
-                Logger.app.infoDev("🛑 Stopping recording (current state: recording)")
 
-                // Cancel any existing timeout
-                recordingTimeout?.invalidate()
-                recordingTimeout = nil
+        // Always use immediate recording mode (hotkey start & stop)
+        // Hotkey Start & Stop
+        guard let recorder = audioRecorder else {
+            Logger.app.errorDev("❌ AudioRecorder not available")
+            return
+        }
 
-                // Stop recording and process in background - no window needed!
-                updateMenuBarIcon(isRecording: false)
+        Logger.app.infoDev("✅ AudioRecorder is available: \(recorder)")
 
-                
-                // Stop recording and get the audio file
-                if let audioURL = recorder.stopRecording() {
-                    Logger.app.infoDev("🔄 Starting background transcription...")
-                    
-                    // Trigger background transcription
-                    startBackgroundTranscription(audioURL: audioURL)
-                } else {
-                    Logger.app.errorDev("❌ Failed to stop recording - no audio URL")
-                }
+        if recorder.isRecording {
+            Logger.app.infoDev("🛑 Stopping recording (current state: recording)")
+
+            // Cancel any existing timeout
+            recordingTimeout?.invalidate()
+            recordingTimeout = nil
+
+            // Stop recording and process in background - no window needed!
+            updateMenuBarIcon(isRecording: false)
+
+
+            // Stop recording and get the audio file
+            if let audioURL = recorder.stopRecording() {
+                Logger.app.infoDev("🔄 Starting background transcription...")
+
+                // Trigger background transcription
+                startBackgroundTranscription(audioURL: audioURL)
             } else {
-                Logger.app.infoDev("🎙️ Attempting to start recording (current state: not recording)")
-                
-                // Check permission first - debug both sources
-                let liveStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-                Logger.app.infoDev("🔍 LIVE TCC Status: \(liveStatus.rawValue) (\(liveStatus))")
-                Logger.app.infoDev("🔍 AudioRecorder.hasPermission: \(recorder.hasPermission)")
-                
-                if !recorder.hasPermission {
-                    Logger.app.errorDev("❌ No microphone permission - background recording not possible")
-                    return
-                }
-                
-                Logger.app.infoDev("✅ Microphone permission granted")
-                
-                // Try to start recording
-                if recorder.startRecording() {
-                    Logger.app.infoDev("✅ Recording started successfully!")
-                    // Success - recording started in background
-                    updateMenuBarIcon(isRecording: true)
-
-                    // Play recording start sound if enabled
-                    SoundManager().playRecordingStartSound()
-                    
-                    // Set up safety timeout (max 5 minutes recording)
-                    setupRecordingTimeout()
-                } else {
-                    Logger.app.errorDev("❌ Recording failed to start")
-                }
+                Logger.app.errorDev("❌ Failed to stop recording - no audio URL")
             }
         } else {
-            // Mode 1 has been removed - only background recording mode is supported
-            Logger.app.errorDev("❌ Manual recording mode not supported - please enable immediate recording in Settings")
+            Logger.app.infoDev("🎙️ Attempting to start recording (current state: not recording)")
+
+            // Check permission first - debug both sources
+            let liveStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+            Logger.app.infoDev("🔍 LIVE TCC Status: \(liveStatus.rawValue) (\(liveStatus))")
+            Logger.app.infoDev("🔍 AudioRecorder.hasPermission: \(recorder.hasPermission)")
+
+            if !recorder.hasPermission {
+                Logger.app.errorDev("❌ No microphone permission - background recording not possible")
+                return
+            }
+
+            Logger.app.infoDev("✅ Microphone permission granted")
+
+            // Try to start recording
+            if recorder.startRecording() {
+                Logger.app.infoDev("✅ Recording started successfully!")
+                // Success - recording started in background
+                updateMenuBarIcon(isRecording: true)
+
+                // Note: Recording start sound removed - no beep
+
+                // Set up safety timeout (max 5 minutes recording)
+                setupRecordingTimeout()
+            } else {
+                Logger.app.errorDev("❌ Recording failed to start")
+            }
         }
     }
     

@@ -2,10 +2,13 @@
 
 ## Debug & Logging
 
-**Workflow:** 
-1. `./build-dev.sh && FluidVoice-dev.app/Contents/MacOS/FluidVoice` (background: `run_in_background: true`)
-2. `/usr/bin/log stream --predicate 'subsystem == "com.fluidvoice.app"' --info` 
-3. `pkill -f FluidVoice`
+**Build Workflow:**
+- `./build-dev.sh 2>&1 | tee build-output.txt` (capture build output to file + terminal)
+- Start app: `FluidVoice-dev.app/Contents/MacOS/FluidVoice` (background: `run_in_background: true`)
+
+**Debug Workflow:**
+1. `/usr/bin/log stream --predicate 'subsystem == "com.fluidvoice.app"' --info`
+2. `pkill -f FluidVoice`
 
 **Kritisch:** 
 - Nie `.build-dev/debug/FluidVoice` verwenden (Bundle-Struktur!)
