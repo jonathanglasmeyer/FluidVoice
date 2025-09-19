@@ -33,15 +33,9 @@ class WindowManager: ObservableObject {
             return
         }
         
+        // ContentView disabled for Parakeet-only architecture - find window by title instead
         if let window = app.windows.first(where: { window in
-            // Check for ContentView in either direct hosting view or as a hosted controller
-            if window.contentView is NSHostingView<ContentView> {
-                return true
-            }
-            if window.contentViewController is NSHostingController<ContentView> {
-                return true
-            }
-            return false
+            return window.title == "FluidVoice Recording" || window.title.isEmpty
         }) {
             configureWindow(window)
             setupWindowObserver(for: window)

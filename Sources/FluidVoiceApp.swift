@@ -92,10 +92,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // App continues with in-memory fallback
         }
         
-        // Start background model preloading for instant transcription
-        Logger.app.infoDev("🔄 Starting PreloadManager...")
-        PreloadManager.shared.startIdlePreload()
-        Logger.app.infoDev("✅ PreloadManager started")
+        // Background preloading now handled by ParakeetDaemon (Parakeet-only architecture)
+        Logger.app.infoDev("✅ Using Parakeet-only transcription")
         
         // Initialize MLX model cache at startup (async, non-blocking)
         Logger.app.infoDev("🔄 Starting MLX Task...")
@@ -608,21 +606,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 Logger.app.infoDev("🔧 Using transcription provider: \(transcriptionProvider.displayName)")
                 
-                // Create services directly for background transcription
-                let speechToTextService = SpeechToTextService()
-                
-                // Use same transcription logic as ContentView
-                let transcribedText: String
-                if transcriptionProvider == .local {
-                    guard let selectedWhisperModel = WhisperModel(rawValue: selectedModelString) else {
-                        Logger.app.errorDev("❌ Invalid whisper model: \(selectedModelString)")
-                        return
-                    }
-                    Logger.app.infoDev("🤖 Using WhisperKit model: \(selectedWhisperModel.displayName)")
-                    transcribedText = try await speechToTextService.transcribe(audioURL: finalAudioURL, provider: transcriptionProvider, model: selectedWhisperModel)
-                } else {
-                    transcribedText = try await speechToTextService.transcribe(audioURL: finalAudioURL, provider: transcriptionProvider)
-                }
+                // Parakeet-only transcription (simplified architecture)
+                Logger.app.infoDev("🦜 Using Parakeet transcription")
+                let pythonPath = await PythonDetector.findPythonWithMLX() ?? "/usr/bin/python3"
+                let transcribedText = try await ParakeetService.shared.transcribe(audioFileURL: finalAudioURL, pythonPath: pythonPath)
                 
                 Logger.app.infoDev("✅ Transcription completed: \(transcribedText.prefix(50))...")
                 Logger.app.infoDev("🧪 DEBUG: Full transcription is [\(transcribedText)]")

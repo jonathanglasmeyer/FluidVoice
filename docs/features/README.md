@@ -1,17 +1,19 @@
 # FluidVoice Feature Backlog
 
 ## 🚀 High Priority Features
-- **[Developer Config File](developer-config-file-feature.md)** - JSON-based configuration with UI sync for developer workflows
-- **[Audio Ducking During Recording](audio-ducking-feature.md)** - Automatically reduce background audio (Spotify, etc.) during voice recording
-- **[Model Architecture Simplification](model-cleanup-feature.md)** - Simplify to Parakeet-only transcription for speed advantage and privacy-first approach
+- **[Parakeet-Only Architecture](model-cleanup-feature.md)** - Radical simplification to Parakeet-only: fastest, most private, least complex transcription
+- **[Parakeet Onboarding Streamlining](onboarding-streamlining-feature.md)** - Automatic Parakeet setup wizard for zero-config first launch experience
 
 ## 🔧 User Interface & Configuration
 - **[Vocabulary UI Editor](vocabulary-ui-editor.md)** - Graphical interface for managing vocabulary replacement configuration
 - **[Microphone Device Selection](microphone-device-selection.md)** - UI for selecting and switching between audio input devices
 
-
 ## 🎵 Audio Features
 - **[Audio History Enhancement](audio-history-enhancement.md)** - Improved audio file management and playback features
+
+## 📋 Backlog Features
+- **[Developer Config File](developer-config-file-feature.md)** - JSON-based configuration with UI sync for developer workflows
+- **[Audio Ducking During Recording](audio-ducking-feature.md)** - Automatically reduce background audio (Spotify, etc.) during voice recording
 
 
 ## ✅ Completed Features

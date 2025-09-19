@@ -36,11 +36,15 @@ struct ParakeetResponse: Codable {
     let confidence: Float?
 }
 
-class ParakeetService {
+class ParakeetService: ObservableObject {
+    static let shared = ParakeetService()
+
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "ParakeetService")
-    
+
     /// Cached flag set at app startup - avoids expensive model checks during transcription
     static var isModelAvailable: Bool = false
+
+    private init() {}
     
     /// Always use high-performance daemon mode for optimal performance
     private var useDaemonMode: Bool {

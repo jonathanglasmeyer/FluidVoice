@@ -89,10 +89,11 @@ class WindowController {
             // Ensure window doesn't cause app to quit when closed
             window.isReleasedWhenClosed = false
             
-            // Create SettingsView with proper ModelContainer
-            let settingsView = SettingsView()
+            // SettingsView disabled for Parakeet-only architecture - use simple placeholder
+            let settingsView = Text("Settings temporarily unavailable - using Parakeet-only mode")
+                .frame(width: 400, height: 200)
                 .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
-            
+
             window.contentView = NSHostingView(rootView: settingsView)
             window.center()
             

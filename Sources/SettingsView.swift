@@ -5,6 +5,8 @@ import ServiceManagement
 import HotKey
 import os.log
 
+/*
+// SettingsView - DISABLED for Parakeet-only architecture (simplified settings needed)
 struct SettingsView: View {
     @AppStorage("selectedMicrophone") private var selectedMicrophone = ""
     @AppStorage("globalHotkey") private var globalHotkey = "⌘⇧Space"
@@ -16,12 +18,10 @@ struct SettingsView: View {
     @ObservedObject private var mlxModelManager = MLXModelManager.shared
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
-    // Semantic correction settings
-    @AppStorage("semanticCorrectionMode") private var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
-    @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/Llama-3.2-3B-Instruct-4bit"
+    // Semantic correction removed - Parakeet-only architecture
     @AppStorage("hasSetupParakeet") private var hasSetupParakeet = false
     @AppStorage("hasSetupLocalLLM") private var hasSetupLocalLLM = false
-    @StateObject private var modelManager = ModelManager.shared
+    // ModelManager removed - Parakeet-only architecture
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
     @State private var geminiKey = ""
@@ -344,7 +344,8 @@ struct SettingsView: View {
                 }
             }
 
-            // Local Whisper Model Management (moved above Semantic Correction)
+            /*
+            // Local Whisper Model Management - DISABLED for Parakeet-only architecture
             if transcriptionProvider == .local {
                 Section("Local Whisper Models") {
                     VStack(alignment: .leading, spacing: 0) {
@@ -497,8 +498,10 @@ struct SettingsView: View {
                     }
                 }
             }
+            */
 
-            // Semantic Correction Layer
+            /*
+            // Semantic Correction Layer - DISABLED for Parakeet-only architecture
             Section(header: Text("Semantic Correction")) {
                 Picker("Mode", selection: $semanticCorrectionModeRaw) {
                     ForEach(SemanticCorrectionMode.allCases, id: \.self) { mode in
@@ -704,6 +707,8 @@ struct SettingsView: View {
         } message: {
             Text("Local LLM correction requires Python deps via uv. Install now?")
         }
+        }
+        */
         .alert("Not Supported on Intel", isPresented: $showArchUnsupportedAlert) {
             Button("OK", role: .cancel) {
                 // Revert selections that triggered this
@@ -1288,3 +1293,4 @@ struct HotKeyRecorderView: View {
         }
     }
 }
+*/

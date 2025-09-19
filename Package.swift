@@ -13,16 +13,14 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.10.2"),
         .package(url: "https://github.com/soffes/HotKey", from: "0.2.1"),
-        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.13.1"),
         .package(url: "https://github.com/kstenerud/KSCrash.git", .upToNextMajor(from: "2.3.0"))
     ],
     targets: [
         .executableTarget(
             name: "FluidVoice",
             dependencies: [
-                "Alamofire", 
-                "HotKey", 
-                "WhisperKit",
+                "Alamofire",
+                "HotKey",
                 .product(name: "Installations", package: "KSCrash")
             ],
             path: "Sources",
@@ -31,7 +29,6 @@ let package = Package(
                 .process("Assets.xcassets"),
                 .copy("parakeet_transcribe_pcm.py"),
                 .copy("parakeet_daemon.py"),
-                .copy("mlx_semantic_correct.py"),
                 // Bundle additional resources like uv binary and lock files
                 .copy("Resources")
             ],

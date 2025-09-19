@@ -19,10 +19,39 @@ docs/
 └── README.md                  # This file
 ```
 
+## Development Quick Start
+
+FluidVoice uses `just` for development commands (like `npm run`):
+
+```bash
+# Install just (macOS)
+brew install just
+
+# See all available commands
+just
+
+# Common development workflow
+just dev        # Build with output capture
+just start      # Start the app
+just logs       # Stream logs (in another terminal)
+just restart    # Quick restart during development
+```
+
+**Key commands:**
+- `just dev` - Build development version and run app
+- `just build-dev` - Build development version only
+- `just build-release` - Build signed production release
+- `just run` - Run/restart existing app (no rebuild)
+- `just test` - Run tests with parallel execution
+- `just logs` - Stream app logs
+- `just kill` - Kill running app processes
+
+See `justfile` for all available commands.
+
 ## Documentation Guidelines
 
 - **One file per feature** - keep it simple
-- **Combine research + spec** in feature files when possible  
+- **Combine research + spec** in feature files when possible
 - **Flat structure** - no nested folders for personal projects
 
 ## Contributing

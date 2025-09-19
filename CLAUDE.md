@@ -106,10 +106,18 @@
 
 ## Quick Commands
 
-- `fv-build` - Fast development build
-- `fv-test` - Run tests 
-- `fv-clean` - Clean build artifacts
-- `source .build-config` - Load build environment
+**Modern justfile commands (recommended):**
+- `just` - Show all available commands
+- `just dev` - Build development version and run app
+- `just build-dev` - Build development version only (without running)
+- `just build-release` - Build signed production release
+- `just run` - Run/restart existing development app (no rebuild)
+- `just test` - Run tests with parallel execution
+- `just logs` - Stream app logs
+- `just kill` - Kill running app processes
+
+**Legacy .build-config aliases:**
+- `source .build-config` - Load fv-* aliases (deprecated in favor of justfile)
 
 ## Vocabulary Mapping Requests
 

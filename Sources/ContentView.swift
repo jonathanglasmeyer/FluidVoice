@@ -23,16 +23,17 @@ private final class ObserverBox: @unchecked Sendable {
     }
 }
 
+/*
+// ContentView - DISABLED for Parakeet-only architecture (using MiniRecordingIndicator instead)
 struct ContentView: View {
     @StateObject private var audioRecorder: AudioRecorder
-    @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.openai
-    @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
-    @StateObject private var speechService: SpeechToTextService
+    // Parakeet-only architecture - no provider selection needed
+    @StateObject private var parakeetService = ParakeetService.shared
     @StateObject private var pasteManager = PasteManager()
     @StateObject private var statusViewModel = StatusViewModel()
     @StateObject private var permissionManager = PermissionManager()
     @StateObject private var soundManager = SoundManager()
-    private let semanticCorrectionService = SemanticCorrectionService()
+    // Semantic correction removed - Parakeet-only architecture
     @State private var isProcessing = false
     @State private var progressMessage = "Processing..."
     @State private var transcriptionStartTime: Date?
@@ -57,8 +58,7 @@ struct ContentView: View {
     @AppStorage("hasShownFirstModelUseHint") private var hasShownFirstModelUseHint = false
     @State private var showFirstModelUseHint = false
     
-    init(speechService: SpeechToTextService = SpeechToTextService(), audioRecorder: AudioRecorder) {
-        self._speechService = StateObject(wrappedValue: speechService)
+    init(audioRecorder: AudioRecorder) {
         self._audioRecorder = StateObject(wrappedValue: audioRecorder)
     }
     
@@ -853,5 +853,6 @@ struct ContentView: View {
         // Reveal the audio file in Finder
         NSWorkspace.shared.selectFile(audioURL.path, inFileViewerRootedAtPath: audioURL.deletingLastPathComponent().path)
     }
-    
+
 }
+*/
