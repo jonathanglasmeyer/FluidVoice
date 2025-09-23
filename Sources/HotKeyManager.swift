@@ -89,60 +89,74 @@ class HotKeyManager {
     
     private func handleFnKeyEvent(_ event: NSEvent) {
         let fnPressed = event.modifierFlags.contains(.function)
-        
-        if fnPressed && fnKeyState == .idle {
-            // Fn key pressed - start recording and timer to detect tap vs hold
-            fnKeyState = .tapPending
-            startTapTimer()
-            onHotKeyPressed()
-            Logger.app.infoDev("Fn key pressed - recording started, detecting tap vs hold")
-            
-        } else if fnPressed && fnKeyState == .toggleRecording {
-            // Another tap while in toggle mode - stop recording
-            fnKeyState = .idle
-            cancelTapTimer()
-            onHotKeyPressed()
-            Logger.app.infoDev("Fn key tapped again - stopping toggle recording")
-            
-        } else if !fnPressed && fnKeyState == .tapPending {
-            // Key released - check if timer is still running to determine tap vs hold
-            if fnKeyTimer != nil {
-                // Timer still running = QUICK TAP
-                cancelTapTimer()
-                fnKeyState = .toggleRecording
-                // Don't call onHotKeyPressed() - keep recording running for toggle mode
-                Logger.app.infoDev("Fn key quick tap detected - entering toggle recording mode")
-            } else {
-                // Timer already expired = it was actually a HOLD
-                fnKeyState = .idle
-                onHotKeyPressed()
+
+        // Dispatch to main queue for thread safety
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            if fnPressed && self.fnKeyState == .idle {
+                // Fn key pressed - start recording and timer to detect tap vs hold
+                self.fnKeyState = .tapPending
+                self.startTapTimer()
+                self.onHotKeyPressed()
+                Logger.app.infoDev("Fn key pressed - recording started, detecting tap vs hold")
+
+            } else if fnPressed && self.fnKeyState == .toggleRecording {
+                // Another tap while in toggle mode - stop recording
+                self.fnKeyState = .idle
+                self.cancelTapTimer()
+                self.onHotKeyPressed()
+                Logger.app.infoDev("Fn key tapped again - stopping toggle recording")
+
+            } else if !fnPressed && self.fnKeyState == .tapPending {
+                // Key released - check if timer is still running to determine tap vs hold
+                if self.fnKeyTimer != nil {
+                    // Timer still running = QUICK TAP
+                    self.cancelTapTimer()
+                    self.fnKeyState = .toggleRecording
+                    // Don't call onHotKeyPressed() - keep recording running for toggle mode
+                    Logger.app.infoDev("Fn key quick tap detected - entering toggle recording mode")
+                } else {
+                    // Timer already expired = it was actually a HOLD
+                    self.fnKeyState = .idle
+                    self.onHotKeyPressed()
+                    Logger.app.infoDev("Fn key hold released - stopping recording")
+                }
+
+            } else if !fnPressed && self.fnKeyState == .holdRecording {
+                // Released during confirmed hold mode = PUSH-TO-TALK stop
+                self.fnKeyState = .idle
+                self.onHotKeyPressed()
                 Logger.app.infoDev("Fn key hold released - stopping recording")
             }
-            
-        } else if !fnPressed && fnKeyState == .holdRecording {
-            // Released during confirmed hold mode = PUSH-TO-TALK stop
-            fnKeyState = .idle
-            onHotKeyPressed()
-            Logger.app.infoDev("Fn key hold released - stopping recording")
         }
     }
     
     private func startTapTimer() {
-        fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
-            self?.handleTapTimerExpired()
+        // Ensure timer runs on main thread's RunLoop
+        DispatchQueue.main.async { [weak self] in
+            self?.fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+                self?.handleTapTimerExpired()
+            }
+            Logger.app.infoDev("Fn key tap timer started (0.2s threshold on main thread)")
         }
     }
     
     private func cancelTapTimer() {
-        fnKeyTimer?.invalidate()
-        fnKeyTimer = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.fnKeyTimer?.invalidate()
+            self?.fnKeyTimer = nil
+            Logger.app.infoDev("Fn key tap timer cancelled")
+        }
     }
     
     private func handleTapTimerExpired() {
-        // Timer expired - just clear the timer, don't change state
-        // State will be determined on key release based on whether timer is still running
-        fnKeyTimer = nil
-        Logger.app.infoDev("Fn key timer expired - will be treated as hold on release")
+        // Timer expired - transition to hold recording mode
+        DispatchQueue.main.async { [weak self] in
+            self?.fnKeyTimer = nil
+            self?.fnKeyState = .holdRecording
+            Logger.app.infoDev("Fn key timer expired - confirmed HOLD recording mode")
+        }
     }
     
     private func parseHotkeyString(_ hotkeyString: String) -> (Key?, NSEvent.ModifierFlags) {
