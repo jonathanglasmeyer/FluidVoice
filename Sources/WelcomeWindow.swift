@@ -7,15 +7,18 @@ class WelcomeWindow {
         let welcomeView = WelcomeView()
         let hostingController = NSHostingController(rootView: welcomeView)
         
-        // Get the main screen dimensions for proper centering
-        let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        // Get the active screen dimensions for proper centering
+        let mouseLocation = NSEvent.mouseLocation
+        let activeScreen = NSScreen.screens.first { screen in
+            NSMouseInRect(mouseLocation, screen.frame, false)
+        } ?? NSScreen.main
+        let screenFrame = activeScreen?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
         let windowWidth: CGFloat = 600
         let windowHeight: CGFloat = 650
         
         let window = NSWindow(
             contentRect: NSRect(
-                x: (screenFrame.width - windowWidth) / 2,
-                y: (screenFrame.height - windowHeight) / 2,
+                x: 0, y: 0,
                 width: windowWidth,
                 height: windowHeight
             ),
@@ -23,10 +26,19 @@ class WelcomeWindow {
             backing: .buffered,
             defer: false
         )
-        
+
         window.contentViewController = hostingController
         window.title = "Welcome to FluidVoice"
         window.isReleasedWhenClosed = false
+
+        // Center the window on the active screen
+        if let screen = activeScreen {
+            let centerX = screen.frame.origin.x + (screen.frame.width - windowWidth) / 2
+            let centerY = screen.frame.origin.y + (screen.frame.height - windowHeight) / 2
+            window.setFrame(NSRect(x: centerX, y: centerY, width: windowWidth, height: windowHeight), display: true)
+        } else {
+            window.center()
+        }
         
         // Add window delegate to handle close button properly
         let delegate = WelcomeWindowDelegate()

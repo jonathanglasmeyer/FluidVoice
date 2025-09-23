@@ -32,25 +32,40 @@ struct WelcomeView: View {
             // Progress indicator
             progressSection
 
-            // Dynamic header
-            VStack(spacing: 8) {
-                Image(systemName: currentStep == .complete ? "checkmark.circle.fill" : "mic.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundColor(currentStep == .complete ? .green : .primary)
-                    .symbolRenderingMode(.hierarchical)
-
-                Text(currentStep.title)
-                    .font(.largeTitle)
-                    .fontWeight(.semibold)
-
+            // Clean header
+            VStack(spacing: 16) {
                 if currentStep == .welcome {
-                    Text("Privacy-first voice transcription for Apple Silicon")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                    // Logo only
+                    Group {
+                        if let logoPath = Bundle.main.path(forResource: "Assets.xcassets/FluidVoiceLogo.imageset/FluidVoiceIcon", ofType: "png"),
+                           let logoImage = NSImage(contentsOfFile: logoPath) {
+                            Image(nsImage: logoImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 220, height: 220)
+                        } else {
+                            Image(systemName: "mic.circle.fill")
+                                .font(.system(size: 80))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                } else {
+                    // Other steps
+                    VStack(spacing: 12) {
+                        Image(systemName: stepIcon(for: currentStep))
+                            .font(.system(size: 64))
+                            .foregroundColor(stepIconColor(for: currentStep))
+                            .symbolRenderingMode(.hierarchical)
+
+                        Text(currentStep.title)
+                            .font(.largeTitle)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                    }
                 }
             }
-            .padding(.top, 30)
-            .padding(.bottom, 20)
+            .padding(.top, 40)
+            .padding(.bottom, 2)
 
             // Step content
             ScrollView {
@@ -78,6 +93,7 @@ struct WelcomeView: View {
         }
         .frame(width: 600, height: 650)
         .background(Color(NSColor.windowBackgroundColor))
+        .tint(Color(red: 0.3, green: 0.3, blue: 0.3))
         .onAppear {
             checkPermissions()
         }
@@ -108,39 +124,48 @@ struct WelcomeView: View {
         let stepIndex = SetupStep.allCases.firstIndex(of: step) ?? 0
 
         if stepIndex < currentIndex {
-            return .green
+            return .secondary
         } else if stepIndex == currentIndex {
-            return .accentColor
+            return Color(red: 0.3, green: 0.3, blue: 0.3)
         } else {
             return .secondary.opacity(0.3)
         }
     }
 
+    private func stepIcon(for step: SetupStep) -> String {
+        switch step {
+        case .welcome: return "mic.circle.fill"
+        case .permissions: return "lock.shield.fill"
+        case .modelDownload: return "arrow.down.circle.fill"
+        case .complete: return "checkmark.circle.fill"
+        }
+    }
+
+    private func stepIconColor(for step: SetupStep) -> Color {
+        switch step {
+        case .welcome: return Color(red: 0.3, green: 0.3, blue: 0.3)
+        case .permissions: return Color(red: 0.3, green: 0.3, blue: 0.3)
+        case .modelDownload: return Color(red: 0.3, green: 0.3, blue: 0.3)
+        case .complete: return .green
+        }
+    }
+
     // MARK: - Step Content
     private var welcomeContent: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Getting Started")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+        VStack(spacing: 32) {
+            // Simple description
+            Text("Ultra-fast, completely private voice transcription on Apple Silicon Macs. No data leaves your device.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+                .lineSpacing(2)
 
-                Text("FluidVoice uses Parakeet for ultra-fast, completely private transcription on Apple Silicon Macs. No data leaves your device.")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-            }
-
+            // Clean feature list
             VStack(alignment: .leading, spacing: 12) {
-                Text("Features")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    FeatureRow(icon: "lock.shield", text: "100% private - no cloud dependencies")
-                    FeatureRow(icon: "bolt", text: "Sub-second transcription with Parakeet")
-                    FeatureRow(icon: "globe", text: "25 languages supported")
-                    FeatureRow(icon: "keyboard", text: "Global hotkey support")
-                    FeatureRow(icon: "textformat", text: "Smart vocabulary correction")
-                }
+                FeatureRow(icon: "lock.shield", text: "100% private - no cloud dependencies")
+                FeatureRow(icon: "bolt", text: "Sub-second transcription with NVIDIA Parakeet V3")
+                FeatureRow(icon: "globe", text: "25 languages with automatic detection")
             }
         }
     }
@@ -228,6 +253,7 @@ struct WelcomeView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(buttonDisabled)
+            .focusable(false)
         }
     }
 
@@ -368,7 +394,7 @@ private struct FeatureRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(.accentColor)
+                .foregroundColor(.primary)
                 .frame(width: 20)
 
             Text(text)
@@ -388,7 +414,7 @@ private struct PermissionRow: View {
         SettingsCard {
             HStack(spacing: 16) {
                 Image(systemName: icon)
-                    .foregroundColor(isGranted ? .green : .orange)
+                    .foregroundColor(isGranted ? .secondary : .orange)
                     .frame(width: 24)
                     .font(.title2)
 
