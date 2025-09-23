@@ -50,7 +50,7 @@ struct SettingsView: View {
 
             // Content area
             contentArea
-                .frame(minWidth: 400)
+                .frame(minWidth: 450)
         }
         .onAppear {
             loadAvailableMicrophones()
@@ -96,48 +96,48 @@ struct SettingsView: View {
                         historyContent
                     }
                 }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 40)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 24)
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
     }
 
     private var contentHeader: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             // Icon in rounded square like Bartender
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(Color(NSColor.controlAccentColor))
-                    .frame(width: 64, height: 64)
+                    .frame(width: 48, height: 48)
 
                 Image(systemName: selectedSection.icon)
-                    .font(.system(size: 28, weight: .medium))
+                    .font(.system(size: 24, weight: .medium))
                     .foregroundColor(.white)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 Text(selectedSection.rawValue)
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.primary)
 
                 Text(selectedSection.description)
-                    .font(.system(size: 13))
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
             }
         }
-        .padding(.top, 12)
+        .padding(.top, 8)
     }
 
     // MARK: - Content Sections
     private var generalContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             // Audio Settings Group
-            BartenderSettingsCard {
+            SettingsCard {
                 VStack(spacing: 0) {
-                    BartenderSettingsRow("Microphone") {
+                    SettingsRow("Microphone") {
                         Picker("Input Device", selection: $selectedMicrophone) {
                             Text("System Default").tag("")
                             ForEach(availableMicrophones, id: \.uniqueID) { device in
@@ -149,9 +149,9 @@ struct SettingsView: View {
                     }
 
                     Divider()
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 16)
 
-                    BartenderSettingsRow("Auto-boost microphone volume") {
+                    SettingsRow("Auto-boost microphone volume") {
                         Toggle("", isOn: $autoBoostMicrophoneVolume)
                             .toggleStyle(.switch)
                     }
@@ -159,7 +159,7 @@ struct SettingsView: View {
             }
 
             // Hotkey Settings Group
-            BartenderSettingsCard {
+            SettingsCard {
                 BartenderSettingsRow("Global Hotkey") {
                     HStack {
                         if isRecordingHotkey {
@@ -192,7 +192,7 @@ struct SettingsView: View {
             }
 
             // General Settings Group
-            BartenderSettingsCard {
+            SettingsCard {
                 BartenderSettingsRow("Start at login") {
                     Toggle("", isOn: $startAtLogin)
                         .toggleStyle(.switch)
@@ -205,9 +205,9 @@ struct SettingsView: View {
     }
 
     private var vocabularyContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             // Vocabulary Management
-            BartenderSettingsCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Vocabulary Management")
@@ -236,7 +236,7 @@ struct SettingsView: View {
             }
 
             // Coming Soon Features
-            BartenderSettingsCard {
+            SettingsCard {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Coming Soon")
@@ -262,11 +262,11 @@ struct SettingsView: View {
     }
 
     private var historyContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             // History Settings
-            BartenderSettingsCard {
+            SettingsCard {
                 VStack(spacing: 0) {
-                    BartenderSettingsRow("Save transcription history") {
+                    SettingsRow("Save transcription history") {
                         Toggle("", isOn: $transcriptionHistoryEnabled)
                             .toggleStyle(.switch)
                     }
@@ -275,7 +275,7 @@ struct SettingsView: View {
                         Divider()
                             .padding(.horizontal, 16)
 
-                        BartenderSettingsRow("Keep history for") {
+                        SettingsRow("Keep history for") {
                             Picker("Retention Period", selection: $transcriptionRetentionPeriodRaw) {
                                 ForEach(RetentionPeriod.allCases, id: \.self) { period in
                                     Text(period.displayName).tag(period.rawValue)
@@ -288,7 +288,7 @@ struct SettingsView: View {
                         Divider()
                             .padding(.horizontal, 16)
 
-                        BartenderSettingsRow("Manage history") {
+                        SettingsRow("Manage history") {
                             Button("View History...") {
                                 showHistoryWindow()
                             }
@@ -340,6 +340,7 @@ struct SettingsView: View {
 // MARK: - Bartender-style Components
 struct BartenderSettingsCard<Content: View>: View {
     let content: Content
+    @Environment(\.colorScheme) private var colorScheme
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
@@ -349,11 +350,15 @@ struct BartenderSettingsCard<Content: View>: View {
         content
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.7))
+                    .fill(
+                        colorScheme == .dark
+                            ? Color.white.opacity(0.015)  // Dark Mode: sehr subtil heller
+                            : Color.black.opacity(0.02)   // Light Mode: sehr subtil dunkler
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(NSColor.separatorColor).opacity(0.3), lineWidth: 1)
+                    .stroke(Color(NSColor.separatorColor).opacity(0.7), lineWidth: 1)
             )
     }
 }
@@ -377,8 +382,8 @@ struct BartenderSettingsRow<Content: View>: View {
 
             content
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 }
 
@@ -408,9 +413,10 @@ struct SidebarRow: View {
                 isSelected ? Color.accentColor : Color.clear
             )
             .cornerRadius(6)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 8)
     }
 }
 
