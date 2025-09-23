@@ -65,7 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingAnimationTimer: DispatchSourceTimer?
     var miniIndicator = MiniRecordingIndicator()
     // SmartPasteTestWindow removed for debugging
-    
+
     // Recording state protection
     private var isHandlingHotkey = false
     private var lastHotkeyTime: TimeInterval = 0

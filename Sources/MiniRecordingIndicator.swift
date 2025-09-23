@@ -25,30 +25,38 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     
     /// Show the indicator with fade-in animation
     func show() {
-        guard !isVisible else { return }
-        
         Logger.miniIndicator.infoDev("🎯 Showing mini recording indicator")
-        
+
         DispatchQueue.main.async { [weak self] in
-            self?.createAndShowWindow()
-            self?.isVisible = true
-            self?.startBufferAnimation()
+            guard let self = self else { return }
+            // Force cleanup any existing window before creating new one
+            if let existingWindow = self.window {
+                Logger.miniIndicator.infoDev("🧹 Force cleaning existing window before show")
+                existingWindow.orderOut(nil)
+                self.window = nil
+            }
+
+            self.createAndShowWindow()
+            self.isVisible = true
+            self.startBufferAnimation()
         }
     }
     
     /// Hide the indicator with fade-out animation
     func hide() {
-        guard isVisible else { return }
-        
         Logger.miniIndicator.infoDev("🎯 Hiding mini recording indicator")
-        
+
         DispatchQueue.main.async { [weak self] in
-            self?.stopBufferAnimation()
-            self?.hideWindow()
-            self?.isVisible = false
-            // Reset buffer when hiding
-            self?.audioLevelBuffer = Array(repeating: 0.0, count: 5)
-            self?.audioLevel = 0.0
+            guard let self = self else { return }
+            // Only hide if currently visible
+            if self.isVisible {
+                self.stopBufferAnimation()
+                self.hideWindowImmediate()
+                self.isVisible = false
+                // Reset buffer when hiding
+                self.audioLevelBuffer = Array(repeating: 0.0, count: 5)
+                self.audioLevel = 0.0
+            }
         }
     }
     
@@ -197,13 +205,13 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
     
     private func hideWindow() {
         guard let window = window else { return }
-        
+
         // Clean up frame observer
         if let token = frameObserverToken {
             NotificationCenter.default.removeObserver(token)
             frameObserverToken = nil
         }
-        
+
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
@@ -212,6 +220,20 @@ class MiniRecordingIndicator: NSObject, ObservableObject {
             window.orderOut(nil)
             self.window = nil
         })
+    }
+
+    private func hideWindowImmediate() {
+        guard let window = window else { return }
+
+        // Clean up frame observer
+        if let token = frameObserverToken {
+            NotificationCenter.default.removeObserver(token)
+            frameObserverToken = nil
+        }
+
+        // No animation - immediate cleanup
+        window.orderOut(nil)
+        self.window = nil
     }
     
     deinit {
