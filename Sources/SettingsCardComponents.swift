@@ -17,13 +17,18 @@ struct SettingsCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
                         colorScheme == .dark
-                            ? Color.white.opacity(0.015)  // Dark Mode: sehr subtil heller
-                            : Color.black.opacity(0.02)   // Light Mode: sehr subtil dunkler
+                            ? Color.white.opacity(0.015)  // Much more subtle in dark mode
+                            : Color.black.opacity(0.02)   // Much more subtle in light mode
                     )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(NSColor.separatorColor).opacity(0.7), lineWidth: 1)
+                    .stroke(
+                        colorScheme == .dark
+                            ? Color.white.opacity(0.1)
+                            : Color.black.opacity(0.1),
+                        lineWidth: 0.5
+                    )
             )
     }
 }

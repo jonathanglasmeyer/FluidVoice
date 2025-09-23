@@ -17,9 +17,12 @@ struct FluidVoiceApp: App {
         WindowGroup {
             EmptyView()
                 .frame(width: 0, height: 0)
+                .tint(Color(red: 0.3, green: 0.3, blue: 0.3))
                 .onAppear {
                     // Hide the empty window immediately
                     NSApplication.shared.windows.first?.orderOut(nil)
+
+                    // Note: macOS doesn't allow direct accent color override
                 }
         }
         .windowStyle(.hiddenTitleBar)

@@ -77,7 +77,7 @@ class WindowController {
         } else {
             // Create new settings window (SwiftUI Settings scene can have focus issues)
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+                contentRect: NSRect(x: 0, y: 0, width: 700, height: 650),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered,
                 defer: false
@@ -114,7 +114,7 @@ class WindowController {
 
             // Restore SettingsView for Parakeet-only architecture
             let settingsView = SettingsView()
-                .frame(width: 600, height: 500)
+                .frame(width: 700, height: 650)
                 .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
 
             let hostingView = NSHostingView(rootView: settingsView)

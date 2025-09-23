@@ -36,7 +36,7 @@ struct WelcomeView: View {
             VStack(spacing: 8) {
                 Image(systemName: currentStep == .complete ? "checkmark.circle.fill" : "mic.circle.fill")
                     .font(.system(size: 64))
-                    .foregroundColor(currentStep == .complete ? .green : .accentColor)
+                    .foregroundColor(currentStep == .complete ? .green : .primary)
                     .symbolRenderingMode(.hierarchical)
 
                 Text(currentStep.title)

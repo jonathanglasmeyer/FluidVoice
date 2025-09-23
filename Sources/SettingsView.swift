@@ -13,7 +13,7 @@ enum SettingsSection: String, CaseIterable {
     var icon: String {
         switch self {
         case .general: return "gearshape.fill"
-        case .vocabulary: return "textformat"
+        case .vocabulary: return "book.fill"
         case .history: return "clock.fill"
         }
     }
@@ -52,6 +52,7 @@ struct SettingsView: View {
             contentArea
                 .frame(minWidth: 450)
         }
+        .tint(Color(red: 0.3, green: 0.3, blue: 0.3))
         .onAppear {
             loadAvailableMicrophones()
         }
@@ -60,6 +61,24 @@ struct SettingsView: View {
     // MARK: - Sidebar
     private var sidebar: some View {
         VStack(spacing: 0) {
+            // FluidVoice logo section - direct image without VStack
+            Group {
+                if let logoPath = Bundle.main.path(forResource: "Assets.xcassets/FluidVoiceLogo.imageset/FluidVoiceIcon", ofType: "png"),
+                   let logoImage = NSImage(contentsOfFile: logoPath) {
+                    Image(nsImage: logoImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: 120)
+                } else {
+                    // Fallback: Use gear icon like header originally had
+                    Image(systemName: "gearshape.fill")
+                        .frame(width: 24, height: 16)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .foregroundColor(.primary)
+            .padding(.bottom, 20)
+
             ForEach(SettingsSection.allCases, id: \.self) { section in
                 SidebarRow(
                     section: section,
@@ -80,7 +99,7 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             // Header
             contentHeader
-                .padding(.horizontal, 40)
+                .padding(.horizontal, 32)
                 .padding(.top, 40)
                 .padding(.bottom, 20)
 
@@ -105,30 +124,32 @@ struct SettingsView: View {
 
     private var contentHeader: some View {
         VStack(spacing: 12) {
-            // Icon in rounded square like Bartender
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(NSColor.controlAccentColor))
-                    .frame(width: 48, height: 48)
+            SettingsCard {
+                VStack(spacing: 8) {
+                    // Section icon - no background
+                    Image(systemName: selectedSection.icon)
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(height: 36)
 
-                Image(systemName: selectedSection.icon)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(.white)
-            }
+                    // Centered title and description like Bartender
+                    VStack(spacing: 4) {
+                        Text(selectedSection.rawValue)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.primary)
 
-            VStack(spacing: 4) {
-                Text(selectedSection.rawValue)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.primary)
-
-                Text(selectedSection.description)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                        Text(selectedSection.description)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .padding(.horizontal, 16)
             }
         }
-        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     // MARK: - Content Sections
@@ -153,7 +174,7 @@ struct SettingsView: View {
 
                     SettingsRow("Auto-boost microphone volume") {
                         Toggle("", isOn: $autoBoostMicrophoneVolume)
-                            .toggleStyle(.switch)
+                            .toggleStyle(SwitchToggleStyle(tint: Color.gray))
                     }
                 }
             }
@@ -195,7 +216,7 @@ struct SettingsView: View {
             SettingsCard {
                 BartenderSettingsRow("Start at login") {
                     Toggle("", isOn: $startAtLogin)
-                        .toggleStyle(.switch)
+                        .toggleStyle(SwitchToggleStyle(tint: Color.gray))
                         .onChange(of: startAtLogin) { oldValue, newValue in
                             updateLoginItem(enabled: newValue)
                         }
@@ -268,7 +289,7 @@ struct SettingsView: View {
                 VStack(spacing: 0) {
                     SettingsRow("Save transcription history") {
                         Toggle("", isOn: $transcriptionHistoryEnabled)
-                            .toggleStyle(.switch)
+                            .toggleStyle(SwitchToggleStyle(tint: Color.gray))
                     }
 
                     if transcriptionHistoryEnabled {
@@ -410,7 +431,7 @@ struct SidebarRow: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(
-                isSelected ? Color.accentColor : Color.clear
+                isSelected ? Color(red: 0.3, green: 0.3, blue: 0.3) : Color.clear
             )
             .cornerRadius(6)
             .padding(.horizontal, 8)
@@ -433,10 +454,10 @@ struct HotKeyRecorderView: View {
     var body: some View {
         HStack {
             Text(displayText)
-                .foregroundColor(.blue)
+                .foregroundColor(.primary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.1))
+                .background(Color.black.opacity(0.1))
                 .cornerRadius(4)
 
             Button("Cancel") {
