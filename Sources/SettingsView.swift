@@ -159,14 +159,14 @@ struct SettingsView: View {
             SettingsCard {
                 VStack(spacing: 0) {
                     SettingsRow("Microphone") {
-                        Picker("Input Device", selection: $selectedMicrophone) {
+                        Picker("", selection: $selectedMicrophone) {
                             Text("System Default").tag("")
                             ForEach(availableMicrophones, id: \.uniqueID) { device in
                                 Text(device.localizedName).tag(device.uniqueID)
                             }
                         }
                         .pickerStyle(.menu)
-                        .frame(maxWidth: 200)
+                        .frame(maxWidth: 250)
                     }
 
                     Divider()

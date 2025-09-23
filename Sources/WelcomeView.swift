@@ -93,7 +93,6 @@ struct WelcomeView: View {
         }
         .frame(width: 600, height: 650)
         .background(Color(NSColor.windowBackgroundColor))
-        .tint(Color(red: 0.3, green: 0.3, blue: 0.3))
         .onAppear {
             checkPermissions()
         }
