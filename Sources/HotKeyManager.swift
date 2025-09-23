@@ -133,30 +133,25 @@ class HotKeyManager {
     }
     
     private func startTapTimer() {
-        // Ensure timer runs on main thread's RunLoop
-        DispatchQueue.main.async { [weak self] in
-            self?.fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
-                self?.handleTapTimerExpired()
-            }
-            Logger.app.infoDev("Fn key tap timer started (0.2s threshold on main thread)")
+        // Called from main thread already - create timer directly
+        fnKeyTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            self?.handleTapTimerExpired()
         }
+        Logger.app.infoDev("Fn key tap timer started (0.2s threshold - direct creation)")
     }
     
     private func cancelTapTimer() {
-        DispatchQueue.main.async { [weak self] in
-            self?.fnKeyTimer?.invalidate()
-            self?.fnKeyTimer = nil
-            Logger.app.infoDev("Fn key tap timer cancelled")
-        }
+        // Called from main thread already - cancel directly
+        fnKeyTimer?.invalidate()
+        fnKeyTimer = nil
+        Logger.app.infoDev("Fn key tap timer cancelled")
     }
     
     private func handleTapTimerExpired() {
         // Timer expired - transition to hold recording mode
-        DispatchQueue.main.async { [weak self] in
-            self?.fnKeyTimer = nil
-            self?.fnKeyState = .holdRecording
-            Logger.app.infoDev("Fn key timer expired - confirmed HOLD recording mode")
-        }
+        fnKeyTimer = nil
+        fnKeyState = .holdRecording
+        Logger.app.infoDev("Fn key timer expired - confirmed HOLD recording mode")
     }
     
     private func parseHotkeyString(_ hotkeyString: String) -> (Key?, NSEvent.ModifierFlags) {
