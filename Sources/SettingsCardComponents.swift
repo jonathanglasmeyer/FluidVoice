@@ -38,17 +38,42 @@ struct SettingsCard<Content: View>: View {
 struct SettingsRow<Content: View>: View {
     let title: String
     let content: Content
+    let infoText: String?
+    @State private var showInfo = false
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(_ title: String, infoText: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.infoText = infoText
         self.content = content()
     }
 
     var body: some View {
         HStack {
-            Text(title)
-                .font(.system(size: 13))
-                .foregroundColor(.primary)
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
+
+                if let infoText = infoText {
+                    Button(action: {
+                        showInfo = true
+                    }) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .popover(isPresented: $showInfo, arrowEdge: .trailing) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(infoText)
+                                .font(.caption)
+                                .lineLimit(4)
+                        }
+                        .padding(12)
+                        .frame(width: 200)
+                    }
+                }
+            }
 
             Spacer()
 

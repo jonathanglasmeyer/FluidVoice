@@ -32,7 +32,7 @@ struct SettingsView: View {
     @AppStorage("selectedMicrophone") private var selectedMicrophone = ""
     @AppStorage("globalHotkey") private var globalHotkey = "⌘⇧Space"
     @AppStorage("startAtLogin") private var startAtLogin = true
-    @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
+    @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = true
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
 
@@ -172,7 +172,7 @@ struct SettingsView: View {
                     Divider()
                         .padding(.horizontal, 16)
 
-                    SettingsRow("Auto-boost microphone volume") {
+                    SettingsRow("Auto-boost microphone volume", infoText: "Auto-boost helps with quiet microphones like built-in MacBook mics. Disable for professional audio gear.") {
                         Toggle("", isOn: $autoBoostMicrophoneVolume)
                             .toggleStyle(SwitchToggleStyle(tint: Color.gray))
                     }
