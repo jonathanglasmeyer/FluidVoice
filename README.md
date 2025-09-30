@@ -12,7 +12,7 @@
 
 > ⚠️ **Development in progress** - Features and APIs may change frequently.
 
-macOS menu bar app for audio transcription. Press ⌘⇧Space to start recording, press again to stop. Text appears directly in your current application.
+macOS menu bar app for audio transcription. Press Right Option to start recording, press again to stop. Text appears directly in your current application.
 
 ## Key Advantages
 

@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 
 class WelcomeWindow {
-    static func showWelcomeDialog() -> Bool {
+    static func showWelcomeDialog(initialStep: SetupStep = .welcome) {
         // Show the new SwiftUI welcome window
-        let welcomeView = WelcomeView()
+        let welcomeView = WelcomeView(initialStep: initialStep)
         let hostingController = NSHostingController(rootView: welcomeView)
         
         // Get the active screen dimensions for proper centering
@@ -54,19 +54,17 @@ class WelcomeWindow {
             NSApplication.shared.activate(ignoringOtherApps: true)
             window.makeKey()
         }
-        
-        // Run the window modally
-        let response = NSApplication.shared.runModal(for: window)
-        window.close()
-        
-        return response == .OK
+
+        // Keep window reference to prevent deallocation
+        objc_setAssociatedObject(NSApp, "welcomeWindow", window, .OBJC_ASSOCIATION_RETAIN)
+        objc_setAssociatedObject(NSApp, "welcomeDelegate", delegate, .OBJC_ASSOCIATION_RETAIN)
     }
 }
 
 class WelcomeWindowDelegate: NSObject, NSWindowDelegate {
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        // End the modal session when close button is clicked
-        NSApplication.shared.stopModal(withCode: .cancel)
-        return true
+    func windowWillClose(_ notification: Notification) {
+        // Clean up associated objects when window closes
+        objc_setAssociatedObject(NSApp, "welcomeWindow", nil, .OBJC_ASSOCIATION_RETAIN)
+        objc_setAssociatedObject(NSApp, "welcomeDelegate", nil, .OBJC_ASSOCIATION_RETAIN)
     }
 }

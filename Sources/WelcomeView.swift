@@ -20,12 +20,19 @@ enum SetupStep: CaseIterable {
 
 struct WelcomeView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var currentStep: SetupStep = .welcome
+    let initialStep: SetupStep
+    @State private var currentStep: SetupStep
     @State private var micPermissionGranted = false
     @State private var accessibilityPermissionGranted = false
     @State private var downloadProgress: Double = 0.0
     @State private var downloadStatus = "Preparing download..."
     @State private var isDownloading = false
+    @StateObject private var modelManager = MLXModelManager.shared
+
+    init(initialStep: SetupStep = .welcome) {
+        self.initialStep = initialStep
+        self._currentStep = State(initialValue: initialStep)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -196,21 +203,24 @@ struct WelcomeView: View {
     }
 
     private var modelDownloadContent: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Downloading Parakeet model (600MB) for offline transcription. This is a one-time setup.")
+        VStack(alignment: .center, spacing: 24) {
+            Text("Setting up Parakeet for fast, offline transcription. One-time download.")
                 .font(.body)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
 
-            VStack(spacing: 16) {
-                ProgressView(value: downloadProgress, total: 1.0)
-                    .progressViewStyle(LinearProgressViewStyle())
+            if isDownloading {
+                VStack(spacing: 16) {
+                    // Show determinate progress bar with percentage
+                    ProgressView(value: downloadProgress, total: 1.0)
+                        .progressViewStyle(LinearProgressViewStyle())
 
-                Text(downloadStatus)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Text("\(Int(downloadProgress * 100))% complete")
-                    .font(.headline)
+                    Text(downloadStatus)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
             }
         }
     }
@@ -221,7 +231,7 @@ struct WelcomeView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("FluidVoice is ready to use. Press your global hotkey (⌘⇧Space by default) to start recording.")
+            Text("FluidVoice is ready to use. Press your global hotkey (Right Option by default) to start recording.")
                 .font(.body)
                 .foregroundColor(.secondary)
 
@@ -285,7 +295,13 @@ struct WelcomeView: View {
             currentStep = .permissions
         case .permissions:
             if permissionsGranted {
-                currentStep = .modelDownload
+                // Check if model is already downloaded before showing download step
+                let repo = MLXModelManager.parakeetRepo
+                if modelManager.downloadedModels.contains(repo) {
+                    currentStep = .complete
+                } else {
+                    currentStep = .modelDownload
+                }
             } else {
                 // Try to grant permissions
                 requestPermissions()
@@ -355,34 +371,71 @@ struct WelcomeView: View {
     }
 
     private func startModelDownload() {
+        let repo = MLXModelManager.parakeetRepo
+
         isDownloading = true
         downloadProgress = 0.0
         downloadStatus = "Starting download..."
 
-        // Simulate download progress (replace with actual MLXModelManager download)
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            downloadProgress += 0.01
+        Task {
+            await modelManager.downloadParakeetModel()
 
-            if downloadProgress >= 0.3 && downloadProgress < 0.6 {
-                downloadStatus = "Downloading Parakeet model..."
-            } else if downloadProgress >= 0.6 && downloadProgress < 0.9 {
-                downloadStatus = "Installing model..."
-            } else if downloadProgress >= 0.9 && downloadProgress < 1.0 {
-                downloadStatus = "Finalizing setup..."
+            // Wait for download to complete
+            while await modelManager.isDownloading[repo] == true {
+                // Update local status from manager
+                if let status = await modelManager.downloadProgress[repo] {
+                    downloadStatus = status
+                    print("📊 WelcomeView: Updated status to: \(status)")
+                }
+                if let percent = await modelManager.downloadPercent[repo] {
+                    downloadProgress = percent
+                    print("📊 WelcomeView: Updated progress to: \(percent)")
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds (faster polling)
             }
 
-            if downloadProgress >= 1.0 {
-                timer.invalidate()
-                downloadStatus = "Download complete!"
-                isDownloading = false
-                currentStep = .complete
+            // One final update after download completes
+            if let finalPercent = await modelManager.downloadPercent[repo] {
+                downloadProgress = finalPercent
+                print("📊 WelcomeView: Final progress: \(finalPercent)")
             }
+
+            // Refresh model list to update availability flag
+            await modelManager.refreshModelList()
+            let downloadedModels = await modelManager.downloadedModels
+            ParakeetService.isModelAvailable = downloadedModels.contains(MLXModelManager.parakeetRepo)
+            print("📊 WelcomeView: ParakeetService.isModelAvailable updated to: \(ParakeetService.isModelAvailable)")
+
+            // Preload Parakeet daemon for zero cold start
+            if ParakeetService.isModelAvailable {
+                do {
+                    print("📊 WelcomeView: Starting Parakeet daemon preload...")
+                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
+                    try await ParakeetDaemon.shared.start(pythonPath: pyURL.path)
+                    print("📊 WelcomeView: Parakeet daemon preloaded successfully")
+                } catch {
+                    print("⚠️ WelcomeView: Daemon preload failed: \(error.localizedDescription)")
+                }
+            }
+
+            downloadStatus = "Download complete!"
+            downloadProgress = 1.0
+            isDownloading = false
+            currentStep = .complete
         }
     }
 
     private func markSetupComplete() {
+        // Check if this is first-run setup (not Help menu)
+        let isFirstRun = !UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
+
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
         UserDefaults.standard.set("2.0", forKey: "lastWelcomeVersion")
+
+        // Only post notification for first-run setup to trigger Settings opening
+        if isFirstRun {
+            NotificationCenter.default.post(name: .welcomeCompleted, object: nil)
+        }
     }
 }
 

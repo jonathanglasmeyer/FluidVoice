@@ -41,7 +41,7 @@ class SettingsViewTests: XCTestCase {
     func testDefaultSettings() {
         // Test that default values are set correctly
         XCTAssertEqual(UserDefaults.standard.string(forKey: "selectedMicrophone") ?? "", "")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "globalHotkey") ?? "⌘⇧Space", "⌘⇧Space")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "globalHotkey") ?? "Right Option", "Right Option")
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "useOpenAI"), false) // Default is false when not set
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "startAtLogin"), false) // Default is false when not set
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "immediateRecording"), false) // Default is Manual Start & Stop mode
@@ -176,8 +176,8 @@ class SettingsViewTests: XCTestCase {
     
     func testGlobalHotkeyDefault() {
         // Test default hotkey
-        let defaultHotkey = UserDefaults.standard.string(forKey: "globalHotkey") ?? "⌘⇧Space"
-        XCTAssertEqual(defaultHotkey, "⌘⇧Space")
+        let defaultHotkey = UserDefaults.standard.string(forKey: "globalHotkey") ?? "Right Option"
+        XCTAssertEqual(defaultHotkey, "Right Option")
     }
     
     func testGlobalHotkeyCustomization() {

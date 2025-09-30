@@ -21,6 +21,7 @@ final class MLXModelManager: ObservableObject {
     @Published var modelSizes: [String: Int64] = [:]
     @Published var isDownloading: [String: Bool] = [:]
     @Published var downloadProgress: [String: String] = [:]
+    @Published var downloadPercent: [String: Double] = [:]
     @Published var totalCacheSize: Int64 = 0
     
     private let logger = Logger(subsystem: "com.fluidvoice.app", category: "MLXModelManager")
@@ -45,7 +46,7 @@ final class MLXModelManager: ObservableObject {
     
     private init() {
         self.cacheDirectory = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cache/huggingface/hub")
+            .appendingPathComponent(".cache/huggingface")
         Task {
             await refreshModelList()
         }
@@ -109,7 +110,7 @@ final class MLXModelManager: ObservableObject {
         let pythonPath: String
         do {
             let py = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
-                self.logger.info("uv: \(msg)")
+                self.logger.infoDev("uv: \(msg)")
             }
             pythonPath = py.path
         } catch {
@@ -296,45 +297,125 @@ except Exception as e:
         await downloadParakeetModel()
     }
 
-    func downloadParakeetModel() async {
+    nonisolated func downloadParakeetModel() async {
         let repo = Self.parakeetRepo
-        logger.info("Starting Parakeet model download for: \(repo)")
-        
+        logger.infoDev("Starting Parakeet model download for: \(repo)")
+
         // Set download state immediately for UI feedback
-        isDownloading[repo] = true
-        downloadProgress[repo] = "Preparing Python environment..."
+        await MainActor.run {
+            self.isDownloading[repo] = true
+            self.downloadProgress[repo] = "Preparing Python environment..."
+        }
 
         let pythonPath: String
         do {
             let py = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
-                self.logger.info("uv: \(msg)")
+                self.logger.infoDev("uv: \(msg)")
             }
             pythonPath = py.path
         } catch {
-            logger.error("Failed to prepare Python environment: \(error.localizedDescription)")
-            downloadProgress[repo] = "Error: Could not prepare Python environment"
-            isDownloading[repo] = false
+            logger.infoDev("Failed to prepare Python environment: \(error.localizedDescription)")
+            await MainActor.run {
+                self.downloadProgress[repo] = "Error: Could not prepare Python environment"
+                self.isDownloading[repo] = false
+            }
             return
         }
 
-        downloadProgress[repo] = "Downloading Parakeet v3 model (~600MB)..."
+        await MainActor.run {
+            self.downloadProgress[repo] = "Downloading Parakeet v3 model..."
+        }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: pythonPath)
         let pythonScript = """
-import json, sys, traceback, os
+import json, sys, traceback, os, time, threading
+from pathlib import Path
 
-# Allow online downloads to download the model
+# Allow online downloads
 os.environ['HF_HUB_OFFLINE'] = '0'
-print("Downloading Parakeet v3 multilingual model...", flush=True)
+os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'  # Disable tqdm entirely
 
 try:
-    from parakeet_mlx import from_pretrained
-    print("Starting model download from Hugging Face...", flush=True)
-    model = from_pretrained(\"\(repo)\")
-    print(json.dumps({"status": "complete", "message": "Parakeet v3 multilingual model downloaded successfully"}), flush=True)
+    print(json.dumps({"message": "Preparing Python environment..."}), flush=True)
+
+    from huggingface_hub import snapshot_download
+
+    cache_dir = Path.home() / ".cache" / "huggingface"
+
+    # Expected model size based on actual model.safetensors + files
+    EXPECTED_SIZE_MB = 2400  # ~2.4GB actual size
+    initial_size_mb = 0
+
+    print(json.dumps({"message": "Starting download from Hugging Face..."}), flush=True)
+
+    # Get initial cache size
+    try:
+        if cache_dir.exists():
+            initial_size = sum(f.stat().st_size for f in cache_dir.rglob('*') if f.is_file())
+            initial_size_mb = initial_size / (1024 * 1024)
+    except:
+        pass
+
+    # Background thread to poll ENTIRE cache directory size
+    stop_polling = threading.Event()
+
+    def poll_download_progress():
+        last_percent = -1
+        while not stop_polling.is_set():
+            try:
+                if cache_dir.exists():
+                    # Calculate TOTAL cache size
+                    total_size = sum(f.stat().st_size for f in cache_dir.rglob('*') if f.is_file())
+                    size_mb = total_size / (1024 * 1024)
+
+                    # Calculate downloaded since start
+                    downloaded_mb = size_mb - initial_size_mb
+
+                    if downloaded_mb > 0:
+                        percent = int((downloaded_mb / EXPECTED_SIZE_MB) * 100)
+                        # Cap at 98% during download (100% only when complete status arrives)
+                        percent = min(percent, 98)
+
+                        if percent != last_percent and percent > 0:
+                            last_percent = percent
+
+                            # Show different message when near completion
+                            if percent >= 95:
+                                message = "Finalizing download..."
+                            else:
+                                message = f"Downloading: {percent}%"
+
+                            print(json.dumps({
+                                "percent": percent,
+                                "message": message
+                            }), flush=True)
+            except:
+                pass
+
+            time.sleep(1)  # Poll every 1 second (faster updates)
+
+    # Start polling thread
+    poll_thread = threading.Thread(target=poll_download_progress, daemon=True)
+    poll_thread.start()
+
+    # Download model (blocking)
+    model_path = snapshot_download(
+        repo_id="\(repo)",
+        cache_dir=str(cache_dir),
+        local_files_only=False,
+        resume_download=True
+    )
+
+    # Stop polling
+    stop_polling.set()
+    poll_thread.join(timeout=1)
+
+    print(json.dumps({"status": "complete", "message": "Download complete!", "percent": 100}), flush=True)
 except Exception as e:
+    stop_polling.set()
     print(json.dumps({"status": "error", "message": str(e)}), flush=True)
+    traceback.print_exc()
     sys.exit(1)
 """
         process.arguments = ["-c", pythonScript]
@@ -344,39 +425,122 @@ except Exception as e:
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            if let line = String(data: data, encoding: .utf8),
-               let jsonData = line.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String],
-               let message = json["message"],
-               let status = json["status"] {
-                Task { @MainActor in
-                    self.downloadProgress[repo] = message
-                    if status == "complete" {
-                        self.downloadedModels.insert(repo)
+        do {
+            try process.run()
+
+            // Read stdout in a background task with polling
+            Task.detached {
+                var buffer = ""
+                var lastOutputTime = Date()
+
+                while process.isRunning {
+                    let data = outputPipe.fileHandleForReading.availableData
+                    if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
+                        buffer += text
+                        lastOutputTime = Date()
+
+                        // Process complete lines
+                        let lines = buffer.components(separatedBy: "\n")
+                        buffer = lines.last ?? ""
+
+                        for line in lines.dropLast() {
+                            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { continue }
+
+                            self.logger.infoDev("Download output: \(trimmed)")
+
+                            guard let jsonData = trimmed.data(using: .utf8),
+                                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+                                self.logger.infoDev("Failed to parse JSON: \(trimmed)")
+                                continue
+                            }
+
+                            await MainActor.run {
+                                // Handle progress updates
+                                if let message = json["message"] as? String {
+                                    self.logger.infoDev("Progress message: \(message)")
+                                    self.downloadProgress[repo] = message
+                                }
+
+                                // Handle percentage updates
+                                if let percent = json["percent"] as? Int {
+                                    self.logger.infoDev("Progress percent: \(percent)%")
+                                    self.downloadPercent[repo] = Double(percent) / 100.0
+                                }
+
+                                // Handle completion
+                                if let status = json["status"] as? String, status == "complete" {
+                                    self.logger.infoDev("Download complete!")
+                                    self.downloadedModels.insert(repo)
+                                    self.downloadPercent[repo] = 1.0
+                                    self.isDownloading[repo] = false
+                                }
+                            }
+                        }
+                    }
+
+                    // Show heartbeat if no updates for 3 seconds
+                    if Date().timeIntervalSince(lastOutputTime) > 3.0 {
+                        await MainActor.run {
+                            let current = self.downloadProgress[repo] ?? "Downloading..."
+                            if !current.contains("still downloading") {
+                                self.downloadProgress[repo] = "\(current) (still downloading...)"
+                            }
+                        }
+                        lastOutputTime = Date()
+                    }
+
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+                }
+
+                // Process any remaining buffer
+                if !buffer.isEmpty {
+                    let trimmed = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        self.logger.infoDev("Final output: \(trimmed)")
                     }
                 }
             }
-        }
 
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty else { return }
-            if let err = String(data: data, encoding: .utf8) {
-                self.logger.error("Parakeet download stderr: \(err)")
+            // Log stderr for debugging (tqdm visual bars go here, but we ignore them)
+            Task.detached {
+                while process.isRunning {
+                    let data = errorPipe.fileHandleForReading.availableData
+                    if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
+                        // Just log stderr for debugging, don't parse it
+                        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            self.logger.infoDev("stderr: \(text)")
+                        }
+                    }
+                    try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+                }
+            }
+
+            // Wait for process on background thread (don't block this function)
+            Task.detached {
+                process.waitUntilExit()
+
+                let exitStatus = process.terminationStatus
+                await MainActor.run {
+                    self.isDownloading[repo] = false
+
+                    if exitStatus == 0 {
+                        self.logger.infoDev("Download completed successfully!")
+                        Task {
+                            await self.refreshModelList()
+                        }
+                    } else {
+                        self.downloadProgress[repo] = "Error: Download failed (exit code: \(exitStatus))"
+                        self.logger.infoDev("Download failed with exit code: \(exitStatus)")
+                    }
+                }
+            }
+        } catch {
+            await MainActor.run {
+                self.downloadProgress[repo] = "Error: \(error.localizedDescription)"
+                self.isDownloading[repo] = false
             }
         }
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            self.downloadProgress[repo] = "Error: \(error.localizedDescription)"
-        }
-
-        self.isDownloading[repo] = false
     }
 
     func deleteModel(_ repo: String) async {

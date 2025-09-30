@@ -102,13 +102,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.app.infoDev("🔄 Starting MLX Task...")
         Task {
             await MLXModelManager.shared.refreshModelList()
-            
+
             // Set cached flags for instant transcription checks
             let downloadedModels = await MLXModelManager.shared.downloadedModels
             ParakeetService.isModelAvailable = downloadedModels.contains(MLXModelManager.parakeetRepo)
-            
+
             Logger.app.infoDev("MLX model cache initialized at startup - Parakeet available: \(ParakeetService.isModelAvailable)")
-            
+
             // Early daemon initialization for zero cold start (always enabled for optimal performance)
             if ParakeetService.isModelAvailable {
                 do {
@@ -118,6 +118,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     Logger.app.infoDev("✅ Parakeet daemon preloaded at startup - zero cold start ready")
                 } catch {
                     Logger.app.infoDev("⚠️ Daemon preload failed (will fallback to lazy loading): \(error.localizedDescription)")
+                }
+            } else {
+                // Check if user has Parakeet selected but model is missing
+                let currentProvider = UserDefaults.standard.string(forKey: "transcriptionProvider") ?? TranscriptionProvider.local.rawValue
+                if currentProvider == TranscriptionProvider.parakeet.rawValue {
+                    Logger.app.infoDev("⚠️ Parakeet provider selected but model missing - showing download screen")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        WelcomeWindow.showWelcomeDialog(initialStep: .modelDownload)
+                    }
                 }
             }
         }
@@ -424,7 +433,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     
     @objc func onWelcomeCompleted() {
-        // Nothing needed - the recording window exists and will be shown by hotkey
+        // Open settings after welcome screen completes
+        openSettings()
     }
     
     
@@ -435,11 +445,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func showHelp() {
         // Show the welcome dialog as help
-        let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
-        
-        if shouldOpenSettings {
-            openSettings()
-        }
+        WelcomeWindow.showWelcomeDialog()
     }
     
     @objc func showCrashLogs() {
@@ -462,11 +468,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func showWelcomeAndSettings() {
-        let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
-        
-        if shouldOpenSettings {
-            openSettings()
-        }
+        WelcomeWindow.showWelcomeDialog()
     }
     
     

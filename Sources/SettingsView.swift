@@ -30,7 +30,7 @@ enum SettingsSection: String, CaseIterable {
 // Parakeet-only SettingsView with macOS sidebar pattern
 struct SettingsView: View {
     @AppStorage("selectedMicrophone") private var selectedMicrophone = ""
-    @AppStorage("globalHotkey") private var globalHotkey = "⌘⇧Space"
+    @AppStorage("globalHotkey") private var globalHotkey = "Right Option"
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = true
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
@@ -41,6 +41,7 @@ struct SettingsView: View {
     @State private var isRecordingHotkey = false
     @State private var recordedModifiers: NSEvent.ModifierFlags = []
     @State private var recordedKey: Key?
+    @AppStorage("hasDismissedFnKeyHint") private var hasDismissedFnKeyHint = false
 
     var body: some View {
         HSplitView {
@@ -181,33 +182,96 @@ struct SettingsView: View {
 
             // Hotkey Settings Group
             SettingsCard {
-                BartenderSettingsRow("Global Hotkey") {
-                    HStack {
-                        if isRecordingHotkey {
-                            HotKeyRecorderView(
-                                isRecording: $isRecordingHotkey,
-                                recordedModifiers: $recordedModifiers,
-                                recordedKey: $recordedKey,
-                                onComplete: { newHotkey in
-                                    globalHotkey = newHotkey
-                                    updateGlobalHotkey(newHotkey)
-                                }
-                            )
-                        } else {
-                            Text(globalHotkey)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.1))
-                                .cornerRadius(4)
+                VStack(alignment: .leading, spacing: 0) {
+                    BartenderSettingsRow("Global Hotkey") {
+                        HStack {
+                            if isRecordingHotkey {
+                                HotKeyRecorderView(
+                                    isRecording: $isRecordingHotkey,
+                                    recordedModifiers: $recordedModifiers,
+                                    recordedKey: $recordedKey,
+                                    onComplete: { newHotkey in
+                                        globalHotkey = newHotkey
+                                        updateGlobalHotkey(newHotkey)
+                                    }
+                                )
+                            } else {
+                                Text(globalHotkey)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.secondary.opacity(0.1))
+                                    .cornerRadius(4)
 
-                            Button("Change") {
-                                isRecordingHotkey = true
-                                recordedModifiers = []
-                                recordedKey = nil
+                                Button("Change") {
+                                    isRecordingHotkey = true
+                                    recordedModifiers = []
+                                    recordedKey = nil
+                                }
+                                .buttonStyle(.bordered)
                             }
-                            .buttonStyle(.bordered)
                         }
+                    }
+
+                    // Fn key warning (only when Fn is selected and not configured)
+                    if globalHotkey == "Fn" && !isFnKeySetToDoNothing() {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 14))
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("macOS System Setting Required")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+
+                                Text("System Settings → Keyboard → \"Press 🌐 key to\" should be set to \"Do Nothing\" to avoid conflicts with FluidVoice.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.secondary.opacity(0.1))
+                        .cornerRadius(6)
+                        .padding(.leading, 16)
+                        .padding(.bottom, 8)
+                    }
+
+                    // Fn key recommendation (always show when Fn is NOT selected and not dismissed)
+                    if globalHotkey != "Fn" && !hasDismissedFnKeyHint {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 12))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Fn key is another great option if you prefer left-hand")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                Text("Just set System Settings → Keyboard → \"Press 🌐 key to\" → \"Do Nothing\" first.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary.opacity(0.8))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer()
+
+                            // Dismiss button
+                            Button(action: {
+                                hasDismissedFnKeyHint = true
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary.opacity(0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 6)
+                        .padding(.bottom, 14)
                     }
                 }
             }
@@ -336,9 +400,19 @@ struct SettingsView: View {
         }
     }
 
+    private func isFnKeySetToDoNothing() -> Bool {
+        // Check macOS Fn key setting (com.apple.HIToolbox AppleFnUsageType)
+        // 0 = Do Nothing, 1 = Change Input Source, 2 = Show Emoji & Symbols, etc.
+        let fnUsageType = UserDefaults(suiteName: "com.apple.HIToolbox")?.integer(forKey: "AppleFnUsageType") ?? -1
+        return fnUsageType == 0
+    }
+
     private func updateGlobalHotkey(_ hotkey: String) {
-        // Implementation would update the global hotkey
-        // This connects to the existing hotkey system
+        // Send notification to update HotKeyManager
+        NotificationCenter.default.post(
+            name: .updateGlobalHotkey,
+            object: hotkey
+        )
     }
 
     private func updateLoginItem(enabled: Bool) {
@@ -450,6 +524,20 @@ struct HotKeyRecorderView: View {
     let onComplete: (String) -> Void
 
     @State private var displayText = "Press keys..."
+    @State private var eventMonitor: Any?
+
+    // Modifier key mapping (keyCode -> name)
+    private let modifierKeyNames: [UInt16: String] = [
+        63: "Fn",
+        61: "Right Option",
+        58: "Left Option",
+        54: "Right Command",
+        55: "Left Command",
+        60: "Right Shift",
+        56: "Left Shift",
+        62: "Right Control",
+        59: "Left Control"
+    ]
 
     var body: some View {
         HStack {
@@ -461,10 +549,73 @@ struct HotKeyRecorderView: View {
                 .cornerRadius(4)
 
             Button("Cancel") {
-                isRecording = false
+                stopRecording()
             }
             .buttonStyle(.bordered)
         }
+        .onAppear {
+            startRecording()
+        }
+        .onDisappear {
+            stopRecording()
+        }
+    }
+
+    private func startRecording() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+            // Check for modifier-only keys (flagsChanged)
+            if event.type == .flagsChanged {
+                if let modifierName = modifierKeyNames[event.keyCode] {
+                    displayText = modifierName
+                    // Complete after short delay to show the key
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onComplete(modifierName)
+                        stopRecording()
+                    }
+                    return nil // Consume event
+                }
+            }
+
+            // Check for regular keys with modifiers
+            if event.type == .keyDown {
+                var hotkeyString = ""
+
+                if event.modifierFlags.contains(.command) {
+                    hotkeyString += "⌘"
+                }
+                if event.modifierFlags.contains(.shift) {
+                    hotkeyString += "⇧"
+                }
+                if event.modifierFlags.contains(.option) {
+                    hotkeyString += "⌥"
+                }
+                if event.modifierFlags.contains(.control) {
+                    hotkeyString += "⌃"
+                }
+
+                if let characters = event.charactersIgnoringModifiers?.uppercased() {
+                    hotkeyString += characters
+                    displayText = hotkeyString
+
+                    // Complete after short delay to show the key
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onComplete(hotkeyString)
+                        stopRecording()
+                    }
+                    return nil // Consume event
+                }
+            }
+
+            return event
+        }
+    }
+
+    private func stopRecording() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+        isRecording = false
     }
 }
 

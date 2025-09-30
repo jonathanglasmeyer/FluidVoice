@@ -132,10 +132,12 @@ class AppSetupHelper {
         let lastWelcomeVersion = UserDefaults.standard.string(forKey: "lastWelcomeVersion") ?? "0"
         
         // Current version that includes SmartPaste feature
-        let currentWelcomeVersion = "1.1" // Update this when SmartPaste feature is released
-        
-        // Show welcome for new users OR existing users who haven't seen the SmartPaste welcome
-        let shouldShowWelcome = (!hasExistingProvider && !hasCompletedWelcome) || (lastWelcomeVersion != currentWelcomeVersion)
+        let currentWelcomeVersion = "2.0" // Update this when SmartPaste feature is released
+
+        // Show welcome for new users OR existing users who haven't seen current welcome version
+        // Use version comparison to avoid showing for users with newer versions
+        let shouldShowWelcome = (!hasExistingProvider && !hasCompletedWelcome) ||
+                                (lastWelcomeVersion.compare(currentWelcomeVersion, options: .numeric) == .orderedAscending)
         
         if shouldShowWelcome {
             if !hasExistingProvider {

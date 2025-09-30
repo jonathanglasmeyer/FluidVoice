@@ -323,6 +323,6 @@ final class HotKeyManagerTests: XCTestCase {
         let manager = HotKeyManager { }
         XCTAssertNotNil(manager)
         
-        // Should use default "⌘⇧Space" without crashing
+        // Should use default "Right Option" without crashing
     }
 }
