@@ -5,6 +5,7 @@ import HotKey
 class HotKeyManager {
     private var hotKey: HotKey?
     private var modifierKeyMonitor: Any?
+    private var localModifierKeyMonitor: Any?
     private let onHotKeyPressed: () -> Void
 
     // Modifier key dual-mode state (tap vs hold)
@@ -89,6 +90,10 @@ class HotKeyManager {
             NSEvent.removeMonitor(monitor)
             modifierKeyMonitor = nil
         }
+        if let monitor = localModifierKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            localModifierKeyMonitor = nil
+        }
         modifierKeyTimer?.invalidate()
         modifierKeyTimer = nil
         modifierKeyState = .idle
@@ -100,10 +105,19 @@ class HotKeyManager {
         currentKeyCode = keyCode
         currentModifierFlag = flag
 
+        // Global monitor: catches events from other apps
         modifierKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
             if event.keyCode == keyCode {
                 self?.handleModifierKeyEvent(event, flag: flag)
             }
+        }
+
+        // Local monitor: catches events from FluidVoice itself (e.g., Welcome window)
+        localModifierKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged]) { [weak self] event in
+            if event.keyCode == keyCode {
+                self?.handleModifierKeyEvent(event, flag: flag)
+            }
+            return event
         }
     }
 

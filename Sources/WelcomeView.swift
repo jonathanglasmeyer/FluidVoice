@@ -28,6 +28,8 @@ struct WelcomeView: View {
     @State private var downloadStatus = "Preparing download..."
     @State private var isDownloading = false
     @StateObject private var modelManager = MLXModelManager.shared
+    @State private var testText = ""
+    @State private var currentHotkey = "Right Option"
 
     init(initialStep: SetupStep = .welcome) {
         self.initialStep = initialStep
@@ -102,6 +104,7 @@ struct WelcomeView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             checkPermissions()
+            currentHotkey = UserDefaults.standard.string(forKey: "globalHotkey") ?? "Right Option"
         }
     }
 
@@ -227,18 +230,47 @@ struct WelcomeView: View {
 
     private var completeContent: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Setup Complete!")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("FluidVoice is ready to use. Press your global hotkey (Right Option by default) to start recording.")
-                .font(.body)
-                .foregroundColor(.secondary)
-
             VStack(alignment: .leading, spacing: 8) {
-                FeatureRow(icon: "checkmark.circle.fill", text: "Permissions granted")
-                FeatureRow(icon: "checkmark.circle.fill", text: "Parakeet model downloaded")
-                FeatureRow(icon: "checkmark.circle.fill", text: "Ready for transcription")
+                Text("Press your global hotkey (\(currentHotkey)) to start recording.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+
+                Text("You can change the hotkey in Settings (click the menubar icon).")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Hold to record")
+                        .font(.headline)
+
+                    Text("Hold the key down while speaking, release to stop.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Tap to start, tap to stop")
+                        .font(.headline)
+
+                    Text("Tap once to start recording, tap again to stop. Perfect for longer recordings.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Try it out")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                TextField("Click here, press your hotkey and speak...", text: $testText)
+                    .textFieldStyle(.roundedBorder)
             }
         }
     }

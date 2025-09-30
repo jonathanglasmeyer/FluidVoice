@@ -562,44 +562,14 @@ struct HotKeyRecorderView: View {
     }
 
     private func startRecording() {
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
-            // Check for modifier-only keys (flagsChanged)
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged]) { event in
+            // Only accept single modifier keys (no key combinations)
             if event.type == .flagsChanged {
                 if let modifierName = modifierKeyNames[event.keyCode] {
                     displayText = modifierName
                     // Complete after short delay to show the key
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         onComplete(modifierName)
-                        stopRecording()
-                    }
-                    return nil // Consume event
-                }
-            }
-
-            // Check for regular keys with modifiers
-            if event.type == .keyDown {
-                var hotkeyString = ""
-
-                if event.modifierFlags.contains(.command) {
-                    hotkeyString += "⌘"
-                }
-                if event.modifierFlags.contains(.shift) {
-                    hotkeyString += "⇧"
-                }
-                if event.modifierFlags.contains(.option) {
-                    hotkeyString += "⌥"
-                }
-                if event.modifierFlags.contains(.control) {
-                    hotkeyString += "⌃"
-                }
-
-                if let characters = event.charactersIgnoringModifiers?.uppercased() {
-                    hotkeyString += characters
-                    displayText = hotkeyString
-
-                    // Complete after short delay to show the key
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        onComplete(hotkeyString)
                         stopRecording()
                     }
                     return nil // Consume event
