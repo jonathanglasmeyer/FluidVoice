@@ -13,7 +13,7 @@ macOS menu bar app for audio transcription that works system-wide in any applica
 
 **Two recording modes:**
 - **Toggle Mode**: Press your shortcut (Right Option or your favorite modifier like `Fn`) to start, press again to stop
-- **Hold to Speak**: Hold your shortcut key, speak, release to transcribe (coming soon)
+- **Hold to Speak**: Hold your shortcut key, speak, release to transcribe
 
 Text appears instantly in your current application—no copy/paste needed.
 
@@ -21,11 +21,10 @@ Text appears instantly in your current application—no copy/paste needed.
 
 ## Key Advantages
 
-### **Complete Privacy & Enterprise-Ready**
-- **Zero cloud dependencies** - Audio never leaves your device
-- **GDPR/SOX compliant** - No data sent to external servers
-- **Enterprise security** - Safe for confidential meetings and sensitive content
-- **Offline-first design** - Works without internet connection
+### **Complete Privacy**
+- **100% offline** - Audio never leaves your device
+- **No data collection** - Zero telemetry, zero tracking
+- **Open source** - Verify for yourself what the code does
 
 ### **Intelligent Multilingual Support**
 - **Automatic language detection** - Switch between languages mid-sentence
