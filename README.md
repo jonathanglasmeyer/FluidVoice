@@ -19,6 +19,10 @@ Text appears instantly in your current application—no copy/paste needed.
 
 **Status:** Core features are functional. Planned enhancements tracked in [`docs/features/`](docs/features/).
 
+## Alternative Products
+
+Looking for other voice transcription tools? Check out [ALTERNATIVES.md](ALTERNATIVES.md) for a detailed comparison of 8 competing products including VoiceInk, Spokenly, SuperWhisper, and more.
+
 ## Key Advantages
 
 ### **Complete Privacy**
@@ -112,10 +116,6 @@ just kill           # Kill running app processes
 ## Contributing
 
 See [CLAUDE.md](CLAUDE.md) for development setup and guidelines.
-
-## Alternative Products
-
-Looking for other voice transcription tools? Check out [ALTERNATIVES.md](ALTERNATIVES.md) for a detailed comparison of 8 competing products including VoiceInk, Spokenly, SuperWhisper, and more.
 
 ## Acknowledgments
 
