@@ -4,15 +4,14 @@
   <img src="FluidVoiceIcon.png" width="200" height="200" alt="FluidVoice Icon">
 </p>
 
-![Work in Progress](https://img.shields.io/badge/Status-Work%20in%20Progress-orange?style=flat-square)
 ![Swift](https://img.shields.io/badge/Swift-5.9+-red?style=flat-square&logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 ![CoreML](https://img.shields.io/badge/CoreML-✓-blue?style=flat-square)
 ![MLX](https://img.shields.io/badge/MLX-✓-purple?style=flat-square)
 
-> ⚠️ **Development in progress** - Features and APIs may change frequently.
-
 macOS menu bar app for audio transcription. Press Right Option to start recording, press again to stop. Text appears directly in your current application.
+
+**Status:** Core features are functional. Planned enhancements tracked in [`docs/features/`](docs/features/).
 
 ## Key Advantages
 
@@ -44,17 +43,15 @@ macOS menu bar app for audio transcription. Press Right Option to start recordin
 ## Features & Development
 
 ### Local Transcription
-- **WhisperKit**: CoreML acceleration, 6 model sizes (39MB - 2.9GB) - Supports 50+ languages with seamless detection
-- **Parakeet v3**: 25 European languages, daemon mode, auto-detection
+- **[Parakeet v3 Multilingual](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)**: NVIDIA's 600M parameter model optimized for speed and accuracy
+  - 25 European languages with automatic detection
+  - Daemon mode for zero cold-start latency
+  - Sub-second transcription on Apple Silicon
+  - Runs entirely offline via MLX
 
 ### Documentation
 - **Features**: See [`docs/features/`](docs/features/) for planned features and [`docs/features/done/`](docs/features/done/) for completed implementations
 - **Bugs**: See [`docs/bugs/`](docs/bugs/) for known issues and [`docs/bugs/done/`](docs/bugs/done/) for resolved bugs
-
-## Legacy Features (Will Be Removed)
-- **Window-based recording**: Recording window interface (disable "Express Mode" in settings)
-- **Manual copy/paste workflow**: Use background mode instead
-- **Cloud APIs**: OpenAI Whisper, Google Gemini - require API keys, send audio to external servers
 
 ## Requirements
 - macOS 14.0 (Sonoma) or later
@@ -76,15 +73,32 @@ macOS menu bar app for audio transcription. Press Right Option to start recordin
 
 **Why code signing?** macOS requires signed apps for microphone permissions. Self-signed certificates work perfectly and cost nothing.
 
+## Development Workflow
+
+**Using just commands:**
+```bash
+just                # List all available commands
+just dev            # Build and run development version
+just release        # Build release version and install to /Applications
+just test           # Run tests
+just logs           # Stream app logs
+just kill           # Kill running app processes
+```
+
 ## Troubleshooting
 
 **"Unidentified Developer" Warning**
 - Right-click the app and select "Open" instead of double-clicking
 - Click "Open" in the security dialog
 
-**Microphone Permission**
+**Microphone Permission Issues**
 - Go to System Settings → Privacy & Security → Microphone
 - Ensure FluidVoice is enabled
+- If permissions don't work after rebuilding, reset them:
+  ```bash
+  tccutil reset Microphone com.fluidvoice.app
+  ```
+- Then restart the app and grant permission again
 
 **Parakeet Setup Issues**
 - Click "Download Parakeet v3 Model" in settings
@@ -94,6 +108,10 @@ macOS menu bar app for audio transcription. Press Right Option to start recordin
 
 See [CLAUDE.md](CLAUDE.md) for development setup and guidelines.
 
+## Alternative Products
+
+Looking for other voice transcription tools? Check out [ALTERNATIVES.md](ALTERNATIVES.md) for a detailed comparison of 8 competing products including VoiceInk, Spokenly, SuperWhisper, and more.
+
 ## Acknowledgments
 
-Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper). Built with SwiftUI, AppKit, WhisperKit, Parakeet-MLX. MIT License.
+Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper). Built with SwiftUI, AppKit, MLX, and [Parakeet v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3). MIT License.

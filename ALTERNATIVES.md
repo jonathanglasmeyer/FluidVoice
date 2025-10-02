@@ -1,6 +1,6 @@
-# Competitive Analysis
+# Alternative Products
 
-## Alternative Products
+Transparency wins. Here's an honest comparison of FluidVoice with other voice transcription tools.
 
 ### 1. VoiceInk
 
@@ -342,7 +342,7 @@
 
 ---
 
-## Competitive Summary
+## Comparison Summary
 
 ### FluidVoice Unique Advantages
 
