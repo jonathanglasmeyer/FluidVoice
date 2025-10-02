@@ -113,7 +113,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if ParakeetService.isModelAvailable {
                 do {
                     Logger.app.infoDev("🚀 Starting Parakeet daemon preload...")
-                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
+                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
+                        Logger.app.infoDev("FluidVoiceApp uv: \(msg)")
+                    }
                     try await ParakeetDaemon.shared.start(pythonPath: pyURL.path)
                     Logger.app.infoDev("✅ Parakeet daemon preloaded at startup - zero cold start ready")
                 } catch {

@@ -60,12 +60,21 @@ macOS menu bar app for audio transcription. Press Right Option to start recordin
 - macOS 14.0 (Sonoma) or later
 
 ## Installation
-```bash
-git clone https://github.com/mazdak/FluidVoice.git
-cd FluidVoice
-./build-dev.sh
-cp -r FluidVoice-dev.app /Applications/FluidVoice.app
-```
+
+### Build from Source
+1. Install Xcode Command Line Tools: `xcode-select --install`
+2. Clone repository:
+   ```bash
+   git clone https://github.com/mazdak/FluidVoice.git
+   cd FluidVoice
+   ```
+3. **Setup code signing** (required for microphone access):
+   - Follow the guide: [docs/setup-code-signing.md](docs/setup-code-signing.md)
+   - Takes ~5 minutes, completely free, no Apple account needed
+4. Build: `./build.sh`
+5. Run: Open `FluidVoice.app`
+
+**Why code signing?** macOS requires signed apps for microphone permissions. Self-signed certificates work perfectly and cost nothing.
 
 ## Troubleshooting
 

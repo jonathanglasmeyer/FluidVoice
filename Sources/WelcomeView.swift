@@ -441,12 +441,14 @@ struct WelcomeView: View {
             // Preload Parakeet daemon for zero cold start
             if ParakeetService.isModelAvailable {
                 do {
-                    print("📊 WelcomeView: Starting Parakeet daemon preload...")
-                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
+                    Logger.app.infoDev("📊 WelcomeView: Starting Parakeet daemon preload...")
+                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
+                        Logger.app.infoDev("WelcomeView uv: \(msg)")
+                    }
                     try await ParakeetDaemon.shared.start(pythonPath: pyURL.path)
-                    print("📊 WelcomeView: Parakeet daemon preloaded successfully")
+                    Logger.app.infoDev("📊 WelcomeView: Parakeet daemon preloaded successfully")
                 } catch {
-                    print("⚠️ WelcomeView: Daemon preload failed: \(error.localizedDescription)")
+                    Logger.app.infoDev("⚠️ WelcomeView: Daemon preload failed: \(error.localizedDescription)")
                 }
             }
 
