@@ -1,7 +1,5 @@
 # FluidVoice Feature Backlog
 
-## 🚀 High Priority Features
-
 ## 🔧 User Interface & Configuration
 - **[Vocabulary UI Editor](vocabulary-ui-editor.md)** - Graphical interface for managing vocabulary replacement configuration
 
