@@ -318,7 +318,7 @@ Transparency wins. Here's an honest comparison of FluidVoice with other voice tr
 | **Local Processing**   | ✅ 100% offline     | ✅ 100% offline     | ✅ 100% offline     | ✅ 100% offline        | ⚠️ Cloud            | ✅ Free local option   | ⚠️ Cloud-based        | ✅ Local + ☁️ Cloud |
 | **Multilingual**       | ✅ 25 languages     | ✅ 100+             | ✅ 100+             | ✅ 100+                | ✅ 100+             | ✅ 100+                | ✅ 100+               | ✅ 100+             |
 | **Custom Vocabulary**  | ✅ JSONC config     | ✅ Personal dict    | ❓                  | ❓                     | ✅ Auto-learns      | ❓                     | ✅ Learns vocab       | ✅ Custom vocab     |
-| **Hotkey Support**     | ✅ FN key           | ✅ Configurable     | ✅ Global           | ✅ Push-to-talk        | ✅                  | ✅                     | ✅                    | ✅                  |
+| **Hotkey Support**     | ✅ Configurable     | ✅ Configurable     | ✅ Global           | ✅ Push-to-talk        | ✅                  | ✅                     | ✅                    | ✅                  |
 | **Privacy**            | ✅ 100% offline     | ✅ 100% offline     | ✅ 100% offline     | ✅ 100% offline        | ⚠️ Cloud, no saves  | ✅ Local mode blocks   | ⚠️ Cloud              | ⚠️ Offline-first    |
 | **Open Source**        | ✅ MIT              | ✅ GPL v3.0         | ❌ Closed           | ❌ Closed              | ❌ Closed           | ❌ Closed              | ❌ Closed             | ❌ Closed           |
 | **Pre-built Binaries** | ❌ Build source     | ✅ Download+Brew    | ✅ Download         | ✅ Download            | ✅ Download         | ✅ 7MB download        | ✅ Download           | ✅ Download         |
