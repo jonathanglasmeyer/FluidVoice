@@ -1,12 +1,9 @@
 # FluidVoice Feature Backlog
 
 ## 🚀 High Priority Features
-- **[Parakeet-Only Architecture](model-cleanup-feature.md)** - Radical simplification to Parakeet-only: fastest, most private, least complex transcription
-- **[Parakeet Onboarding Streamlining](onboarding-streamlining-feature.md)** - Automatic Parakeet setup wizard for zero-config first launch experience
 
 ## 🔧 User Interface & Configuration
 - **[Vocabulary UI Editor](vocabulary-ui-editor.md)** - Graphical interface for managing vocabulary replacement configuration
-- **[Microphone Device Selection](microphone-device-selection.md)** - UI for selecting and switching between audio input devices
 
 ## 🎵 Audio Features
 - **[Audio History Enhancement](audio-history-enhancement.md)** - Improved audio file management and playback features
@@ -18,6 +15,9 @@
 
 ## ✅ Completed Features
 
+- **[Parakeet-Only Architecture](done/model-cleanup-feature.md)** ✅ **DONE** - Radical simplification to Parakeet-only: fastest, most private, least complex transcription
+- **[Parakeet Onboarding Streamlining](done/onboarding-streamlining-feature.md)** ✅ **DONE** - Automatic Parakeet setup wizard for zero-config first launch experience
+- **[Microphone Device Selection](done/microphone-device-selection.md)** ✅ **DONE** - UI for selecting and switching between audio input devices
 - **[Audio Level Metering](done/audio-level-metering.md)** ✅ **DONE** - Real-time audio waveform visualization in mini recording indicator with <5ms latency
 - **[Uh Sound Removal](done/uh-sound-removal-feature.md)** ✅ **DONE** - Automatically remove filler sounds like 'uh', 'äh', 'um' from transcriptions
 - **[Fast Vocabulary Correction](done/fast-vocabulary-correction.md)** ✅ **DONE** - Ultra-fast privacy-first vocabulary correction (150x faster than LLMs)

@@ -9,7 +9,13 @@
 ![CoreML](https://img.shields.io/badge/CoreML-✓-blue?style=flat-square)
 ![MLX](https://img.shields.io/badge/MLX-✓-purple?style=flat-square)
 
-macOS menu bar app for audio transcription. Press Right Option to start recording, press again to stop. Text appears directly in your current application.
+macOS menu bar app for audio transcription that works system-wide in any application.
+
+**Two recording modes:**
+- **Toggle Mode**: Press your shortcut (Right Option or your favorite modifier like `Fn`) to start, press again to stop
+- **Hold to Speak**: Hold your shortcut key, speak, release to transcribe (coming soon)
+
+Text appears instantly in your current application—no copy/paste needed.
 
 **Status:** Core features are functional. Planned enhancements tracked in [`docs/features/`](docs/features/).
 
