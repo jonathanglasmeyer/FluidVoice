@@ -1,4 +1,4 @@
-# Alternative Products
+# Alternative Voice Transcription Tools
 
 Transparency wins. Here's an honest comparison of FluidVoice with other voice transcription tools.
 

@@ -19,10 +19,6 @@ Text appears instantly in your current application—no copy/paste needed.
 
 **Status:** Core features are functional. Planned enhancements tracked in [`docs/features/`](docs/features/).
 
-## Alternative Products
-
-Looking for other voice transcription tools? Check out [ALTERNATIVES.md](ALTERNATIVES.md) for a detailed comparison of 8 competing products including VoiceInk, Spokenly, SuperWhisper, and more.
-
 ## Key Advantages
 
 ### **Complete Privacy**
@@ -61,6 +57,10 @@ Looking for other voice transcription tools? Check out [ALTERNATIVES.md](ALTERNA
 ### Documentation
 - **Features**: See [`docs/features/`](docs/features/) for planned features and [`docs/features/done/`](docs/features/done/) for completed implementations
 - **Bugs**: See [`docs/bugs/`](docs/bugs/) for known issues and [`docs/bugs/done/`](docs/bugs/done/) for resolved bugs
+
+## Alternative Products
+
+Looking for other voice transcription tools? Check out [ALTERNATIVES.md](ALTERNATIVES.md) for a detailed comparison of 8 competing products including VoiceInk, Spokenly, SuperWhisper, and more.
 
 ## Requirements
 - macOS 14.0 (Sonoma) or later
