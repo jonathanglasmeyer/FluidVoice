@@ -161,7 +161,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Create menu
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: ""))
+        let historyItem = NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: "h")
+        historyItem.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(historyItem)
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -627,10 +629,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let pasteManager = PasteManager()
                     pasteManager.pasteText(transcribedText)
                 }
-                
-                // TODO: Save to history later
-                // Logger.app.infoDev("📊 Transcription saved to clipboard")
-                
+
+                // Save to transcription history
+                let shouldSave = await MainActor.run { DataManager.shared.isHistoryEnabled }
+                if shouldSave {
+                    let record = TranscriptionRecord(
+                        text: transcribedText,
+                        provider: .parakeet,
+                        duration: nil,
+                        modelUsed: "parakeet-tdt-0.6b-v3"
+                    )
+                    await DataManager.shared.saveTranscriptionQuietly(record)
+                    Logger.app.infoDev("📊 Transcription saved to history")
+                }
+
                 Logger.app.info("✅ Transcription completed successfully")
                 
             } catch {
