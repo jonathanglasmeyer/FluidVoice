@@ -367,8 +367,8 @@ struct TranscriptionRecordRow: View {
                             
                             HStack(spacing: 8) {
                                 // Provider badge
-                                providerBadge
-                                
+                                // providerBadge
+
                                 // Duration if available
                                 if let duration = record.formattedDuration {
                                     HStack(spacing: 3) {
@@ -379,13 +379,13 @@ struct TranscriptionRecordRow: View {
                                     }
                                     .foregroundColor(.secondary)
                                 }
-                                
-                                // Model used if available
-                                if let modelUsed = record.modelUsed {
-                                    Text(modelUsed)
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.secondary)
-                                }
+
+                                // Model used if available - HIDDEN
+                                // if let modelUsed = record.modelUsed {
+                                //     Text(modelUsed)
+                                //         .font(.system(size: 11))
+                                //         .foregroundColor(.secondary)
+                                // }
                             }
                             
                             Spacer()
