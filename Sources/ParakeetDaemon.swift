@@ -241,18 +241,32 @@ final class ParakeetDaemon {
         // Monitor stdout for responses
         stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty, let self = self else { return }
-            
+            guard let self = self else { return }
+
+            if data.isEmpty {
+                // EOF: subprocess exited — stop handler to prevent busy-loop
+                handle.readabilityHandler = nil
+                self.logger.warning("Daemon stdout EOF — subprocess likely exited")
+                return
+            }
+
             if let output = String(data: data, encoding: .utf8) {
                 self.handleDaemonOutput(output)
             }
         }
-        
+
         // Monitor stderr for errors
         stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty, let self = self else { return }
-            
+            guard let self = self else { return }
+
+            if data.isEmpty {
+                // EOF: subprocess exited — stop handler to prevent busy-loop
+                handle.readabilityHandler = nil
+                self.logger.warning("Daemon stderr EOF — subprocess likely exited")
+                return
+            }
+
             if let error = String(data: data, encoding: .utf8) {
                 self.logger.warning("Daemon stderr: \(error)")
             }

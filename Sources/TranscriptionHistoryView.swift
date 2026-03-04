@@ -6,7 +6,7 @@ import AppKit
 struct TranscriptionHistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \TranscriptionRecord.date, order: .reverse) private var allRecords: [TranscriptionRecord]
-    
+
     @State private var searchText = ""
     @State private var isLoading = false
     @State private var showError = false
@@ -552,7 +552,7 @@ struct TranscriptionRecordRow: View {
             fatalError("Failed to create preview container: \(error)")
         }
     }()
-    
+
     return TranscriptionHistoryView()
         .modelContainer(previewContainer)
         .frame(width: 700, height: 500)

@@ -9,6 +9,7 @@ import json
 import os
 import signal
 import traceback
+import gc
 from pathlib import Path
 
 # Allow online model loading if needed
@@ -29,7 +30,9 @@ class ParakeetDaemon:
         self.model = None
         self.model_repo = "mlx-community/parakeet-tdt-0.6b-v3"
         self.running = True
-        
+        self.transcription_count = 0
+        self.gc_interval = 10  # Run full GC every N transcriptions
+
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -132,7 +135,11 @@ class ParakeetDaemon:
                 raise AttributeError(f"Cannot extract text from result: {result}")
             
             text = text.strip() if text else ""
-            
+
+            # Memory cleanup - critical to prevent leaks
+            del audio_data, audio_mlx, mel, result
+            mx.metal.clear_cache()
+
             # Return successful transcription
             return {
                 "status": "success",
@@ -140,10 +147,12 @@ class ParakeetDaemon:
                 "language": detected_language,
                 "confidence": confidence
             }
-            
+
         except Exception as e:
+            # Cleanup even on error
+            mx.metal.clear_cache()
             return {
-                "status": "error", 
+                "status": "error",
                 "message": str(e),
                 "traceback": traceback.format_exc()
             }
@@ -153,15 +162,20 @@ class ParakeetDaemon:
         try:
             if "pcm_path" not in request_data:
                 return {"status": "error", "message": "Missing 'pcm_path' in request"}
-            
+
             pcm_path = request_data["pcm_path"]
             result = self.transcribe_audio(pcm_path)
-            
+
+            # Track and periodically run full garbage collection
+            self.transcription_count += 1
+            if self.transcription_count % self.gc_interval == 0:
+                gc.collect()
+
             return result
-            
+
         except Exception as e:
             return {
-                "status": "error", 
+                "status": "error",
                 "message": f"Request processing failed: {e}",
                 "traceback": traceback.format_exc()
             }
