@@ -617,15 +617,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Logger.app.infoDev("🦜 Using Parakeet transcription")
                 let pythonPath = await PythonDetector.findPythonWithMLX() ?? "/usr/bin/python3"
                 let transcribedText = try await ParakeetService.shared.transcribe(audioFileURL: finalAudioURL, pythonPath: pythonPath)
-                
+
                 Logger.app.infoDev("✅ Transcription completed: \(transcribedText.prefix(50))...")
-                Logger.app.infoDev("🧪 DEBUG: Full transcription is [\(transcribedText)]")
-                
-                // Auto-paste transcribed text
+
+                // Apply vocabulary correction
+                let correctedText = FastVocabularyCorrector.shared.correct(transcribedText)
+                if correctedText != transcribedText {
+                    Logger.app.infoDev("📝 Vocabulary corrected: \(correctedText.prefix(50))...")
+                }
+
+                Logger.app.infoDev("🧪 DEBUG: Final text is [\(correctedText)]")
+
+                // Auto-paste corrected text
                 Logger.app.infoDev("🔄 Auto-pasting transcribed text...")
                 await MainActor.run {
                     let pasteManager = PasteManager()
-                    pasteManager.pasteText(transcribedText)
+                    pasteManager.pasteText(correctedText)
                 }
                 
                 // TODO: Save to history later

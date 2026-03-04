@@ -301,6 +301,23 @@ final class FastVocabularyCorrector {
     }
 }
 
+// MARK: - Shared Instance
+
+extension FastVocabularyCorrector {
+    static let shared: FastVocabularyCorrector = {
+        let corrector = FastVocabularyCorrector()
+        let glossary = VocabularyConfigManager.shared.loadGlossary()
+        corrector.load(glossary: glossary)
+        return corrector
+    }()
+
+    /// Reload glossary from config file (call after config changes)
+    func reloadGlossary() {
+        let glossary = VocabularyConfigManager.shared.loadGlossary()
+        load(glossary: glossary)
+    }
+}
+
 // MARK: - Character Extensions
 
 extension Character {
