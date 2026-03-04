@@ -21,7 +21,7 @@ FluidVoice requires code signing for macOS TCC (Transparency, Consent, and Contr
    - **Email**: Use your email
    - **Name**: Accept defaults
    - **Key Pair Information**: Accept defaults (2048 bits, RSA)
-   - **Key Usage Extension**: Check **"Certificate Signing"** (uncheck "Signature")
+   - **Key Usage Extension**: Check **"Signature"** (uncheck "Certificate Signing")
    - **Extended Key Usage Extension**: Check **"Code Signing"**
    - **Basic Constraints Extension**: Leave unchecked
 5. **Keychain**: Select **login**
