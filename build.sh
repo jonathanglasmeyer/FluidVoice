@@ -128,8 +128,12 @@ mkdir -p FluidVoice.app/Contents/Resources
 # Set build number for Info.plist
 BUILD_NUMBER="${VERSION//./}"
 
-# Copy executable (universal binary)
-cp .build/apple/Products/Release/FluidVoice FluidVoice.app/Contents/MacOS/
+# Copy executable (universal binary); the products dir differs between SwiftPM build systems
+BIN_PATH=$(xcrun swift build -c release --arch arm64 --arch x86_64 --show-bin-path)
+if ! cp "$BIN_PATH/FluidVoice" FluidVoice.app/Contents/MacOS/; then
+  echo "❌ Executable not found in $BIN_PATH"
+  exit 1
+fi
 
 # Note: AudioProcessorCLI binary no longer needed - using direct Swift audio processing
 
@@ -256,7 +260,7 @@ else
 fi
 
 if [ -n "$SIGNING_IDENTITY" ]; then
-  sign_app "$SIGNING_IDENTITY" "$SIGNING_NAME"
+  sign_app "$SIGNING_IDENTITY" "$SIGNING_NAME" || exit 1
 else
   echo "💡 No Developer ID found. App will be unsigned."
   echo "💡 To sign the app, get a Developer ID certificate from Apple Developer Portal."
