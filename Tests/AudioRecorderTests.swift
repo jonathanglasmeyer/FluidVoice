@@ -30,7 +30,11 @@ class AudioRecorderTests: XCTestCase {
         )
         XCTAssertTrue(audioRecorder.startRecording(), "Recording should start successfully")
         Thread.sleep(forTimeInterval: 0.3)
-        return audioRecorder.stopRecording()
+        let url = audioRecorder.stopRecording()
+        if let url = url {
+            addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        }
+        return url
     }
     
     // MARK: - Initialization Tests
