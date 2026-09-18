@@ -30,7 +30,16 @@ final class HALMicrophoneSource {
     /// Audio buffer for processing
     private var audioBuffer: [Float] = []
     private let bufferSize = 512
-    
+
+    /// Render health of the current/last run. Written on the render thread while running,
+    /// read only after AudioOutputUnitStop (which is synchronous), so no lock needed.
+    fileprivate var renderErrorCount = 0
+    fileprivate var lastRenderError: OSStatus = noErr
+    fileprivate var capturedFrames = 0
+
+    /// Set when the pre-warmed AudioUnit may be stale (wake, device list change) while recording
+    private var invalidatePending = false
+
     init() {
         Logger.audioRecorder.infoDev("🎤 HALMicrophoneSource initialized (direct HAL AudioUnit)")
     }
@@ -56,12 +65,18 @@ final class HALMicrophoneSource {
             nativeSampleRate = detectNativeSampleRate(deviceID: deviceID)
             sampleRate = nativeSampleRate
             Logger.audioRecorder.infoDev("🔍 Detected native sample rate: \(nativeSampleRate)Hz for device \(deviceID)")
-            
+            guard nativeSampleRate > 0 else {
+                throw HALError.invalidSampleRate(deviceID)
+            }
+
             // Create and configure HAL AudioUnit with native sample rate
             try createHALAudioUnit(deviceID: deviceID)
-            
+            guard let audioUnit = audioUnit else {
+                throw HALError.componentNotFound
+            }
+
             // Initialize the AudioUnit for prewarming (but don't start it)
-            let initResult = AudioUnitInitialize(audioUnit!)
+            let initResult = AudioUnitInitialize(audioUnit)
             guard initResult == noErr else {
                 throw HALError.initializationFailed(initResult)
             }
@@ -84,9 +99,26 @@ final class HALMicrophoneSource {
         
         currentDeviceID = deviceID
         currentDeviceName = getDeviceName(deviceID) ?? "Unknown Device"
-        
-        // Use pre-warmed AudioUnit if available and device matches
-        if isPrewarmed && prewarmDeviceID == deviceID {
+
+        // AUHAL does no sample rate conversion on the input side: a client format that doesn't
+        // match the device's nominal rate makes every AudioUnitRender fail with -10863 (silence).
+        // The rate can change under a pre-warmed unit (other apps, wake, device switch).
+        let deviceRate = detectNativeSampleRate(deviceID: deviceID)
+        guard deviceRate > 0 else {
+            throw HALError.invalidSampleRate(deviceID)
+        }
+
+        let canReusePrewarmed = isPrewarmed && audioUnit != nil && prewarmDeviceID == deviceID
+            && deviceRate == nativeSampleRate && renderErrorCount == 0
+        if isPrewarmed && !canReusePrewarmed {
+            Logger.audioRecorder.infoDev("🔄 Rebuilding HAL AudioUnit (device \(prewarmDeviceID)→\(deviceID), rate \(nativeSampleRate)→\(deviceRate)Hz, prior render errors: \(renderErrorCount))")
+        }
+
+        renderErrorCount = 0
+        lastRenderError = noErr
+        capturedFrames = 0
+
+        if canReusePrewarmed, let audioUnit = audioUnit {
             // OPTIMIZED PATH: Just activate the pre-configured AudioUnit
             Logger.audioRecorder.infoDev("🚀 Starting pre-warmed HAL AudioUnit with device ID: \(deviceID)")
             
@@ -95,7 +127,7 @@ final class HALMicrophoneSource {
             activeLevelHandler = levelHandler
             
             // Ultra-fast start: just start the AudioUnit
-            let startResult = AudioOutputUnitStart(audioUnit!)
+            let startResult = AudioOutputUnitStart(audioUnit)
             guard startResult == noErr else {
                 throw HALError.startFailed(startResult)
             }
@@ -117,14 +149,23 @@ final class HALMicrophoneSource {
             activeRecordingHandler = recordingHandler
             activeLevelHandler = levelHandler
             
-            // Create and configure new HAL AudioUnit
+            // Create and configure new HAL AudioUnit at the device's current rate
+            nativeSampleRate = deviceRate
+            sampleRate = deviceRate
             try createHALAudioUnit(deviceID: deviceID)
-            
-            // Start the AudioUnit
-            AudioUnitInitialize(audioUnit!)
-            
-            let startResult = AudioOutputUnitStart(audioUnit!)
+            guard let newUnit = audioUnit else {
+                throw HALError.componentNotFound
+            }
+
+            let initResult = AudioUnitInitialize(newUnit)
+            guard initResult == noErr else {
+                dispose()
+                throw HALError.initializationFailed(initResult)
+            }
+
+            let startResult = AudioOutputUnitStart(newUnit)
             guard startResult == noErr else {
+                dispose()
                 throw HALError.startFailed(startResult)
             }
             
@@ -157,8 +198,36 @@ final class HALMicrophoneSource {
         isRunning = false
         activeRecordingHandler = nil
         activeLevelHandler = nil
-        
+
+        if renderErrorCount > 0 {
+            Logger.audioRecorder.errorDev("❌ \(renderErrorCount) AudioUnitRender failures this recording (last: \(lastRenderError)), captured frames: \(capturedFrames) - unit will be rebuilt on next start")
+        }
+
+        if invalidatePending {
+            invalidatePending = false
+            dispose()
+            return
+        }
+
         Logger.audioRecorder.infoDev("✅ HAL AudioUnit stopped (pre-warmed state preserved)")
+    }
+
+    /// Drop the pre-warmed AudioUnit so the next start rebuilds it against the current device state.
+    /// Deferred until stop() if a recording is running.
+    func invalidate(reason: String) {
+        guard audioUnit != nil else { return }
+        if isRunning {
+            Logger.audioRecorder.infoDev("🔄 HAL AudioUnit invalidation deferred until stop (\(reason))")
+            invalidatePending = true
+        } else {
+            Logger.audioRecorder.infoDev("🔄 Invalidating pre-warmed HAL AudioUnit (\(reason))")
+            dispose()
+        }
+    }
+
+    /// Frames delivered by the device during the last run (0 = no signal at all)
+    var lastCapturedFrames: Int {
+        return capturedFrames
     }
     
     /// Completely dispose of the HAL AudioUnit (called on deinit)
@@ -442,10 +511,14 @@ private func audioInputCallback(
     )
     
     guard status == noErr else {
-        Logger.audioRecorder.error("❌ AudioUnitRender failed: \(status)")
+        // Count instead of logging per callback (was hundreds of lines per recording); stop() reports
+        source.renderErrorCount += 1
+        source.lastRenderError = status
         return status
     }
-    
+
+    source.capturedFrames += Int(inNumberFrames)
+
     // Process the audio data
     if let audioData = bufferList.mBuffers.mData {
         let floatPointer = audioData.bindMemory(to: Float.self, capacity: Int(inNumberFrames))
@@ -463,7 +536,8 @@ enum HALError: Error, LocalizedError {
     case configurationFailed(String, OSStatus)
     case initializationFailed(OSStatus)
     case startFailed(OSStatus)
-    
+    case invalidSampleRate(AudioDeviceID)
+
     var errorDescription: String? {
         switch self {
         case .componentNotFound:
@@ -476,6 +550,8 @@ enum HALError: Error, LocalizedError {
             return "Failed to initialize AudioUnit (status: \(status))"
         case .startFailed(let status):
             return "Failed to start AudioUnit (status: \(status))"
+        case .invalidSampleRate(let deviceID):
+            return "Device \(deviceID) reports no valid sample rate (disconnected aggregate/sub-device?)"
         }
     }
 }

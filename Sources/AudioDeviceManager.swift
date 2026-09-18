@@ -34,16 +34,16 @@ class AudioDeviceManager: ObservableObject {
                 }
                 return preferredDeviceID
             }
-            // User preference not available, check if we have a valid cached fallback
-            else if let cachedDeviceID = selectedDeviceID {
-                if isValidInputDevice(deviceID: cachedDeviceID) {
-                    Logger.audioDeviceManager.infoDev("🎤 User preferred device unavailable, using cached fallback: \(self.getDeviceName(deviceID: cachedDeviceID) ?? "Unknown") (ID: \(cachedDeviceID))")
-                    return cachedDeviceID
-                } else {
-                    Logger.audioDeviceManager.infoDev("⚠️ Cached fallback device no longer valid, reselecting...")
-                    selectedDeviceID = nil
-                }
+            // User preference not available: fall back to the built-in mic. Not the cache - it
+            // still holds the preferred device's ID, which may linger (e.g. an aggregate device
+            // whose sub-device is gone).
+            Logger.audioDeviceManager.infoDev("⚠️ User preferred device unavailable, falling back")
+            if let builtInID = findBuiltInInputDevice() {
+                Logger.audioDeviceManager.infoDev("🎤 Fallback to built-in input: \(getDeviceName(deviceID: builtInID) ?? "Unknown") (ID: \(builtInID))")
+                selectedDeviceID = builtInID
+                return builtInID
             }
+            selectedDeviceID = nil
         }
         // No user preference OR preference unavailable, select best available
         else if let cachedDeviceID = selectedDeviceID {
@@ -111,8 +111,7 @@ class AudioDeviceManager: ObservableObject {
             Logger.audioDeviceManager.infoDev("🎤 System default input: '\(systemDefaultName)' (ID: \(systemDefaultID))")
             
             // Check if system default is blacklisted
-            let blacklistedNames = ["Background Music", "Soundflower", "Loopback", "SoundSource"]
-            if blacklistedNames.contains(where: { systemDefaultName.contains($0) }) {
+            if Self.blacklistedNames.contains(where: { systemDefaultName.contains($0) }) || !isValidInputDevice(deviceID: systemDefaultID) {
                 Logger.audioDeviceManager.infoDev("⚠️ System default '\(systemDefaultName)' is virtual/blacklisted - finding better device")
                 
                 if let betterDeviceID = findBetterInputDevice() {
@@ -174,8 +173,7 @@ class AudioDeviceManager: ObservableObject {
                 Logger.audioDeviceManager.infoDev("🔍 Evaluating input device: '\(deviceName)' (ID: \(deviceID))")
                 
                 // Skip blacklisted devices
-                let blacklistedNames = ["Background Music", "Soundflower", "Loopback", "SoundSource"]
-                if blacklistedNames.contains(where: { deviceName.contains($0) }) {
+                if Self.blacklistedNames.contains(where: { deviceName.contains($0) }) {
                     Logger.audioDeviceManager.infoDev("⚠️ Skipping blacklisted device: '\(deviceName)'")
                     continue
                 }
@@ -250,7 +248,7 @@ class AudioDeviceManager: ObservableObject {
         
         // Search for matching device by name
         for deviceID in devices {
-            guard hasInputChannels(deviceID: deviceID) else { continue }
+            guard isValidInputDevice(deviceID: deviceID) else { continue }
             
             if let audioDeviceName = getDeviceName(deviceID: deviceID) {
                 // Try exact name match first
@@ -271,8 +269,53 @@ class AudioDeviceManager: ObservableObject {
         return nil
     }
     
+    /// Virtual/loopback devices: they have input channels but carry no microphone signal
+    private static let blacklistedNames = ["Background Music", "Soundflower", "Loopback", "SoundSource", "BlackHole", "Microsoft Teams Audio", "ZoomAudioDevice"]
+    
     private func isValidInputDevice(deviceID: AudioDeviceID) -> Bool {
-        return hasInputChannels(deviceID: deviceID)
+        return hasInputChannels(deviceID: deviceID) && (nominalSampleRate(deviceID: deviceID) ?? 0) > 0
+    }
+    
+    private func findBuiltInInputDevice() -> AudioDeviceID? {
+        return allDeviceIDs().first { deviceID in
+            transportType(deviceID: deviceID) == kAudioDeviceTransportTypeBuiltIn && isValidInputDevice(deviceID: deviceID)
+        }
+    }
+    
+    private func allDeviceIDs() -> [AudioDeviceID] {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size) == noErr else { return [] }
+        var devices = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &devices) == noErr else { return [] }
+        return devices
+    }
+    
+    private func transportType(deviceID: AudioDeviceID) -> UInt32? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var value: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        return AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &value) == noErr ? value : nil
+    }
+    
+    /// 0 for aggregate devices whose sub-device is disconnected
+    private func nominalSampleRate(deviceID: AudioDeviceID) -> Float64? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var value: Float64 = 0
+        var size = UInt32(MemoryLayout<Float64>.size)
+        return AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &value) == noErr ? value : nil
     }
     
     func getDeviceName(deviceID: AudioDeviceID) -> String? {

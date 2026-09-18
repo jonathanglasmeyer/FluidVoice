@@ -31,6 +31,9 @@ class AudioRecorder: NSObject, ObservableObject {
     
     // Pre-warmed AVAudioEngine for instant recording start
     private var isEnginePrewarmed: Bool = false
+
+    private var wakeObserver: NSObjectProtocol?
+    private var deviceChangeListener: AudioObjectPropertyListenerBlock?
     
     // Real-time level monitoring throttling
     private var lastLevelUpdateTime: CFTimeInterval = 0
@@ -44,7 +47,8 @@ class AudioRecorder: NSObject, ObservableObject {
         
         // Initialize true HAL microphone source
         halMicSource = HALMicrophoneSource()
-        
+        setupAudioSystemObservers()
+
         // Pre-warm device manager for optimal latency
         Task {
             await prewarmDeviceManager()
@@ -53,6 +57,39 @@ class AudioRecorder: NSObject, ObservableObject {
     
     private func setupRecorder() {
         // AVAudioSession is not needed on macOS
+    }
+
+    /// Sleep/wake and device hot-plug can leave the pre-warmed AudioUnit bound to a stale
+    /// device state (rate change → every render fails with -10863, i.e. silent recordings).
+    private func setupAudioSystemObservers() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.halMicSource.invalidate(reason: "system wake")
+        }
+
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.halMicSource.invalidate(reason: "audio device configuration changed")
+        }
+        deviceChangeListener = listener
+        for var address in Self.observedHardwareAddresses {
+            AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, DispatchQueue.main, listener)
+        }
+    }
+
+    private static let observedHardwareAddresses = [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultInputDevice].map {
+        AudioObjectPropertyAddress(mSelector: $0, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+    }
+
+    private func removeAudioSystemObservers() {
+        if let wakeObserver = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
+        if let listener = deviceChangeListener {
+            for var address in Self.observedHardwareAddresses {
+                AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, DispatchQueue.main, listener)
+            }
+        }
     }
     
     private func prewarmDeviceManager() async {
@@ -260,7 +297,13 @@ class AudioRecorder: NSObject, ObservableObject {
                 }
             )
             let startDuration = (CACurrentMediaTime() - startTime) * 1000
-            
+
+            // Device or its rate may differ from the pre-warmed one; writeAudioData must
+            // interpret buffers at the rate the unit actually delivers
+            if let nativeFormat = halMicSource.nativeAudioFormat {
+                audioFormat = nativeFormat
+            }
+
             if isEnginePrewarmed {
                 Logger.audioRecorder.infoDev("✅ HAL source started with pre-warmed config in \(String(format: "%.1f", startDuration))ms")
             } else {
@@ -286,26 +329,34 @@ class AudioRecorder: NSObject, ObservableObject {
         
         Logger.audioRecorder.infoDev("🛑 Stopping HAL AudioUnit recording...")
         
-        // Stop HAL source
+        // Stop HAL source (may dispose the unit, so grab the device name first)
+        let deviceName = halMicSource.deviceInfo.name
         halMicSource.stop()
-        
+
         Logger.audioRecorder.infoDev("✅ HAL AudioUnit stopped cleanly (no system setting restoration needed)")
-        
+
         // Close audio file
         audioFile = nil
-        
+
         DispatchQueue.main.async {
             self.isRecording = false
             self.audioLevel = 0.0
         }
-        
+
         // Restore microphone volume if it was boosted
         if UserDefaults.standard.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.restoreMicrophoneVolume()
             }
         }
-        
+
+        // Device delivered nothing: don't hand an empty file to transcription (Whisper hallucinates)
+        if halMicSource.lastCapturedFrames == 0 {
+            Logger.audioRecorder.errorDev("❌ No audio captured from device '\(deviceName)' - discarding recording")
+            cleanupRecording()
+            return nil
+        }
+
         Logger.audioRecorder.infoDev("✅ HAL AudioUnit recording stopped successfully")
         return recordingURL
     }
@@ -538,6 +589,7 @@ class AudioRecorder: NSObject, ObservableObject {
     }
     
     deinit {
+        removeAudioSystemObservers()
         forceCleanup()
     }
 }
