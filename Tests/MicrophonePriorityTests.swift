@@ -3,7 +3,8 @@ import XCTest
 
 final class MicrophonePriorityTests: XCTestCase {
     private var defaults: UserDefaults!
-    private let suiteName = "MicrophonePriorityTests"
+    // Unique per test: `swift test --parallel` runs methods in separate processes sharing named suites
+    private let suiteName = "MicrophonePriorityTests-\(UUID().uuidString)"
 
     override func setUp() {
         super.setUp()

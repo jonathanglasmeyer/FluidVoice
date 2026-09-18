@@ -310,9 +310,7 @@ class AudioRecorder: NSObject, ObservableObject {
                 Logger.audioRecorder.infoDev("⚠️ HAL source started on-demand in \(String(format: "%.1f", startDuration))ms")
             }
             
-            DispatchQueue.main.async {
-                self.isRecording = true
-            }
+            setRecordingState(true)
             
             Logger.audioRecorder.infoDev("✅ HAL AudioUnit direct input started: \(audioFilename.lastPathComponent)")
             
@@ -321,6 +319,20 @@ class AudioRecorder: NSObject, ObservableObject {
         } catch {
             Logger.audioRecorder.error("❌ Failed to start HAL AudioUnit recording: \(error.localizedDescription)")
             return false
+        }
+    }
+    
+    /// Callers (hotkey, UI) are on main: set state synchronously so an immediate stop sees it
+    /// and the first audio callbacks aren't dropped by the `isRecording` guard.
+    private func setRecordingState(_ recording: Bool) {
+        let apply = {
+            self.isRecording = recording
+            if !recording { self.audioLevel = 0.0 }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
         }
     }
     
@@ -338,10 +350,7 @@ class AudioRecorder: NSObject, ObservableObject {
         // Close audio file
         audioFile = nil
 
-        DispatchQueue.main.async {
-            self.isRecording = false
-            self.audioLevel = 0.0
-        }
+        setRecordingState(false)
 
         // Restore microphone volume if it was boosted
         if UserDefaults.standard.autoBoostMicrophoneVolume {

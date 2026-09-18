@@ -22,6 +22,17 @@ class AudioRecorderTests: XCTestCase {
         super.tearDown()
     }
     
+    /// Records real audio: recordings without captured frames are discarded (stopRecording → nil)
+    private func recordBriefly() throws -> URL? {
+        try XCTSkipUnless(
+            AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+            "Needs microphone access for the test runner"
+        )
+        XCTAssertTrue(audioRecorder.startRecording(), "Recording should start successfully")
+        Thread.sleep(forTimeInterval: 0.3)
+        return audioRecorder.stopRecording()
+    }
+    
     // MARK: - Initialization Tests
     
     func testInitialState() {
@@ -71,10 +82,8 @@ class AudioRecorderTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
     
-    func testStopRecordingReturnsURL() {
-        let success = audioRecorder.startRecording()
-        XCTAssertTrue(success, "Recording should start successfully")
-        let url = audioRecorder.stopRecording()
+    func testStopRecordingReturnsURL() throws {
+        let url = try recordBriefly()
         
         XCTAssertNotNil(url)
         if let url = url {
@@ -139,10 +148,8 @@ class AudioRecorderTests: XCTestCase {
     
     // MARK: - File URL Generation Tests
     
-    func testRecordingURLGeneration() {
-        let success = audioRecorder.startRecording()
-        XCTAssertTrue(success, "Recording should start successfully")
-        let url = audioRecorder.stopRecording()
+    func testRecordingURLGeneration() throws {
+        let url = try recordBriefly()
         
         XCTAssertNotNil(url)
         guard let url = url else {
@@ -160,17 +167,9 @@ class AudioRecorderTests: XCTestCase {
         XCTAssertNotNil(Double(timestampString))
     }
     
-    func testUniqueRecordingURLs() {
-        let success1 = audioRecorder.startRecording()
-        XCTAssertTrue(success1, "First recording should start successfully")
-        let url1 = audioRecorder.stopRecording()
-        
-        // Small delay to ensure different timestamp
-        Thread.sleep(forTimeInterval: 0.1)
-        
-        let success2 = audioRecorder.startRecording()
-        XCTAssertTrue(success2, "Second recording should start successfully")
-        let url2 = audioRecorder.stopRecording()
+    func testUniqueRecordingURLs() throws {
+        let url1 = try recordBriefly()
+        let url2 = try recordBriefly()
         
         XCTAssertNotNil(url1)
         XCTAssertNotNil(url2)

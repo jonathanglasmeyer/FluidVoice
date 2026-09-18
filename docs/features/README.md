@@ -15,9 +15,9 @@
 
 - **[Parakeet-Only Architecture](done/model-cleanup-feature.md)** ✅ **DONE** - Radical simplification to Parakeet-only: fastest, most private, least complex transcription
 - **[Parakeet Onboarding Streamlining](done/onboarding-streamlining-feature.md)** ✅ **DONE** - Automatic Parakeet setup wizard for zero-config first launch experience
-- **[Microphone Device Selection](done/microphone-device-selection.md)** ✅ **DONE** - UI for selecting and switching between audio input devices
+- **[Microphone Device Selection](done/microphone-device-selection.md)** ✅ **DONE** - Microphone priority list: first connected mic records, built-in mic as fallback
 - **[Audio Level Metering](done/audio-level-metering.md)** ✅ **DONE** - Real-time audio waveform visualization in mini recording indicator with <5ms latency
-- **[Uh Sound Removal](done/uh-sound-removal-feature.md)** ✅ **DONE** - Automatically remove filler sounds like 'uh', 'äh', 'um' from transcriptions
+- **[Uh Sound Removal](done/2025-09-09-uh-sound-removal-feature.md)** ❌ **REMOVED** - Dropped from the pipeline in the Parakeet-only refactor (f7d30d7), code deleted 2026-09-18
 - **[Fast Vocabulary Correction](done/fast-vocabulary-correction.md)** ✅ **DONE** - Ultra-fast privacy-first vocabulary correction (150x faster than LLMs)
 - **[Custom Vocabulary Feature](done/custom-vocabulary-feature.md)** ✅ **DONE** - Enhanced vocabulary customization with LLM-based semantic correction
 - **[Custom Vocabulary GPT5](done/custom-vocabulary-gpt5.md)** ✅ **DONE** - Ultra-fast offline vocabulary correction using Aho-Corasick pattern matching

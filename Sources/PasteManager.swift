@@ -4,27 +4,6 @@ import ApplicationServices
 import Carbon
 import os.log
 
-// Helper class to safely capture observer in closure
-// Uses a lock to ensure thread-safe access to the mutable observer property
-// @unchecked is required because we have mutable state but we ensure thread safety via NSLock
-private final class ObserverBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _observer: NSObjectProtocol?
-    
-    var observer: NSObjectProtocol? {
-        get {
-            lock.lock()
-            defer { lock.unlock() }
-            return _observer
-        }
-        set {
-            lock.lock()
-            defer { lock.unlock() }
-            _observer = newValue
-        }
-    }
-}
-
 /// Errors that can occur during paste operations
 enum PasteError: LocalizedError {
     case accessibilityPermissionDenied
@@ -54,48 +33,6 @@ class PasteManager: ObservableObject {
     /// Directly types the provided text using Unicode-Typing
     func pasteText(_ text: String) {
         performUnicodeTyping(text: text)
-    }
-    
-    /// SmartPaste function that attempts to paste text into a specific application
-    /// This is the function mentioned in the test requirements
-    func smartPaste(into targetApp: NSRunningApplication?, text: String) {
-        // CRITICAL: Check accessibility permission without prompting - never bypass this check
-        // If this fails, we must NOT attempt to proceed with CGEvent operations
-        guard accessibilityManager.checkPermission() else {
-            // Permission is definitively denied - show proper error and stop processing
-            // Do NOT attempt any paste operations without permission
-            handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
-            return
-        }
-        
-        // Validate target application
-        guard let targetApp = targetApp, !targetApp.isTerminated else {
-            handlePasteResult(.failure(PasteError.targetAppNotAvailable))
-            return
-        }
-        
-        // Attempt to activate target application
-        let activationSuccess = targetApp.activate(options: [])
-        if !activationSuccess {
-            // App activation failed - this could indicate the app is not responsive
-            handlePasteResult(.failure(PasteError.targetAppNotAvailable))
-            return
-        }
-        
-        // Wait for app to become active before pasting
-        waitForApplicationActivation(targetApp) { [weak self] in
-            guard let self = self else { return }
-            
-            // Double-check permission before performing paste (belt and suspenders approach)
-            guard self.accessibilityManager.checkPermission() else {
-                // Permission was revoked between initial check and paste attempt
-                self.handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
-                return
-            }
-            
-            // Use Unicode-Typing directly with the text
-            self.performUnicodeTyping(text: text)
-        }
     }
     
     /// Performs paste with completion handler for proper coordination
@@ -284,46 +221,6 @@ class PasteManager: ObservableObject {
             throw PasteError.keyboardEventCreationFailed
         }
     }
-    
-    // MARK: - App Activation Handling
-    
-    private func waitForApplicationActivation(_ target: NSRunningApplication, completion: @escaping () -> Void) {
-        // If already active, execute completion immediately
-        if target.isActive {
-            completion()
-            return
-        }
-        
-        let observerBox = ObserverBox()
-        var timeoutCancelled = false
-        
-        // Set up timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak observerBox] in
-            guard !timeoutCancelled else { return }
-            if let observer = observerBox?.observer {
-                NotificationCenter.default.removeObserver(observer)
-            }
-            // Execute completion even on timeout to avoid hanging
-            completion()
-        }
-        
-        // Observe app activation
-        observerBox.observer = NotificationCenter.default.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak observerBox] notification in
-            if let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-               activatedApp.processIdentifier == target.processIdentifier {
-                timeoutCancelled = true
-                if let observer = observerBox?.observer {
-                    NotificationCenter.default.removeObserver(observer)
-                }
-                completion()
-            }
-        }
-    }
-    
 }
 
 // MARK: - String Extensions for Unicode-Typing
