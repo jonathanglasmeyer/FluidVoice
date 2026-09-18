@@ -718,51 +718,30 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testLargeDatasetPerformance() async throws {
         // Create a large number of records to test performance
         let recordCount = 1000
-        var records: [TranscriptionRecord] = []
-        
-        measure {
-            // Generate records
-            for i in 0..<recordCount {
-                let provider = TranscriptionProvider.allCases[i % TranscriptionProvider.allCases.count]
-                let text = "Performance test record number \(i) with some additional content to make it realistic"
-                let duration = Double.random(in: 1.0...300.0) // 1 second to 5 minutes
-                let record = createSampleRecord(text: text, provider: provider, duration: duration)
-                records.append(record)
-            }
+        for i in 0..<recordCount {
+            let provider = TranscriptionProvider.allCases[i % TranscriptionProvider.allCases.count]
+            let text = "Performance test record number \(i) with some additional content to make it realistic"
+            let duration = Double.random(in: 1.0...300.0) // 1 second to 5 minutes
+            modelContext.insert(createSampleRecord(text: text, provider: provider, duration: duration))
         }
-        
-        // Test batch insertion performance
-        measure {
-            for record in records {
-                modelContext.insert(record)
-            }
-            try! modelContext.save()
-        }
+        try modelContext.save()
         
         await waitForAsyncOperation()
         
         // Verify all records were saved
         let savedRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         XCTAssertEqual(savedRecords.count, recordCount, "All records should be saved")
+        XCTAssertGreaterThan(savedRecords.filter { $0.matches(searchQuery: "500") }.count, 0, "Should find some records")
+        XCTAssertGreaterThan(savedRecords.filter { $0.provider == "openai" }.count, 0, "Should find OpenAI records")
         
-        // Test search performance with large dataset
+        // XCTest allows a single measure block per test: search, sorted fetch and provider filter together
         measure {
-            let filtered = savedRecords.filter { $0.matches(searchQuery: "500") }
-            XCTAssertGreaterThan(filtered.count, 0, "Should find some records")
-        }
-        
-        // Test fetch with sorting performance
-        measure {
+            _ = savedRecords.filter { $0.matches(searchQuery: "500") }
             let descriptor = FetchDescriptor<TranscriptionRecord>(
                 sortBy: [SortDescriptor(\.date, order: .reverse)]
             )
-            let _ = try! modelContext.fetch(descriptor)
-        }
-        
-        // Test filtering by provider performance
-        measure {
-            let openaiRecords = savedRecords.filter { $0.provider == "openai" }
-            XCTAssertGreaterThan(openaiRecords.count, 0, "Should find OpenAI records")
+            _ = try? modelContext.fetch(descriptor)
+            _ = savedRecords.filter { $0.provider == "openai" }
         }
     }
     
@@ -784,26 +763,14 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         
         let allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         
-        // Test search performance for different query types
-        let searchQueries = ["meeting", "development", "openai", "base", "transcription", "performance"]
+        // Plain, case-insensitive ("MEETING") and partial ("discuss") queries;
+        // XCTest allows a single measure block per test, so all run inside one
+        let searchQueries = ["meeting", "development", "openai", "base", "transcription", "performance", "MEETING", "discuss"]
         
-        for query in searchQueries {
-            measure {
-                let results = allRecords.filter { $0.matches(searchQuery: query) }
-                XCTAssertGreaterThanOrEqual(results.count, 0, "Search should complete without error")
+        measure {
+            for query in searchQueries {
+                _ = allRecords.filter { $0.matches(searchQuery: query) }
             }
-        }
-        
-        // Test case-insensitive search performance
-        measure {
-            let results = allRecords.filter { $0.matches(searchQuery: "MEETING") }
-            XCTAssertGreaterThanOrEqual(results.count, 0, "Case-insensitive search should work")
-        }
-        
-        // Test partial match performance
-        measure {
-            let results = allRecords.filter { $0.matches(searchQuery: "discuss") }
-            XCTAssertGreaterThanOrEqual(results.count, 0, "Partial match search should work")
         }
     }
     

@@ -5,15 +5,26 @@ import AppKit
 class AccessibilityPermissionManagerTests: XCTestCase {
     
     var accessibilityManager: AccessibilityPermissionManager!
+    var alerts: AlertRecorder!
     
     override func setUp() {
         super.setUp()
-        accessibilityManager = AccessibilityPermissionManager()
+        alerts = AlertRecorder()
+        accessibilityManager = AccessibilityPermissionManager(presentAlert: alerts.present)
     }
     
     override func tearDown() {
         accessibilityManager = nil
+        alerts = nil
         super.tearDown()
+    }
+    
+    /// Alerts are presented asynchronously on the main queue; wait until `count` have been shown
+    private func waitForAlerts(_ count: Int = 1, timeout: TimeInterval = 2.0) {
+        let shown = expectation(description: "\(count) alert(s) presented")
+        shown.expectedFulfillmentCount = count
+        alerts.onPresent = { shown.fulfill() }
+        wait(for: [shown], timeout: timeout)
     }
     
     // MARK: - Permission Checking Tests
@@ -40,25 +51,30 @@ class AccessibilityPermissionManagerTests: XCTestCase {
     // MARK: - Permission Request Flow Tests
     
     func testRequestPermissionWithExplanationCompletesQuicklyIfAlreadyGranted() {
-        // This test would normally check if permission is already granted
-        // In a test environment, we expect it to complete within reasonable time
+        // Granted: completes immediately. Not granted: explanation alert is declined via the recorder.
+        let hasPermission = accessibilityManager.checkPermission()
+        alerts.response = .alertSecondButtonReturn // "Continue Without SmartPaste"
         let expectation = expectation(description: "Permission request completes")
         
         accessibilityManager.requestPermissionWithExplanation { granted in
-            // In test environment, this should complete quickly
+            XCTAssertEqual(granted, hasPermission)
             expectation.fulfill()
         }
         
-        // Wait only briefly - if permission is already granted, should be immediate
         wait(for: [expectation], timeout: 2.0)
+        if !hasPermission {
+            XCTAssertEqual(alerts.titles, ["Accessibility Permission Required for SmartPaste"])
+        }
     }
     
     // MARK: - Error Handling Tests
     
     func testPermissionManagerHandlesSystemSettingsURLGracefully() {
-        // Test that opening system settings doesn't crash
-        // In test environment, URL opening should be handled gracefully
+        // "Cancel" must not open System Settings
+        alerts.response = .alertSecondButtonReturn
         XCTAssertNoThrow(accessibilityManager.showManualPermissionInstructions())
+        waitForAlerts()
+        XCTAssertEqual(alerts.titles, ["Enable Accessibility Permission"])
     }
     
     // MARK: - Detailed Permission Status Tests
@@ -88,25 +104,44 @@ class AccessibilityPermissionManagerTests: XCTestCase {
             NSError(domain: "com.apple.accessibility", code: -1, userInfo: [:])
         ]
         
+        alerts.response = .alertSecondButtonReturn // "Continue Without SmartPaste"
         for error in testErrors {
             XCTAssertNoThrow(accessibilityManager.handlePermissionError(error))
         }
+        waitForAlerts(testErrors.count)
+        XCTAssertEqual(alerts.titles, Array(repeating: "Permission Request Error", count: testErrors.count))
     }
     
     func testShowPermissionDeniedMessageDoesNotCrash() {
-        // Test that permission denied message handling doesn't crash
         XCTAssertNoThrow(accessibilityManager.showPermissionDeniedMessage())
+        waitForAlerts()
+        XCTAssertEqual(alerts.titles, ["SmartPaste Disabled"])
     }
     
     // MARK: - User Interface Flow Tests
     
     func testManualPermissionInstructionsHandling() {
-        // Test that manual instructions can be shown without crashing
+        alerts.response = .alertSecondButtonReturn // "Cancel"
         XCTAssertNoThrow(accessibilityManager.showManualPermissionInstructions())
+        waitForAlerts()
+        XCTAssertEqual(alerts.titles, ["Enable Accessibility Permission"])
+    }
+    
+    func testDefaultPresenterDoesNotBlockUnderXCTest() {
+        // Managers created without a presenter (PasteManager, PermissionManager) must not run a modal in tests
+        let manager = AccessibilityPermissionManager()
+        let expectation = expectation(description: "Request completes without user input")
+        
+        manager.requestPermissionWithExplanation { _ in
+            expectation.fulfill()
+        }
+        
+        wait(for: [expectation], timeout: 2.0)
     }
     
     func testPermissionRequestFlowCompletesWithoutHanging() {
         // Test that permission request flow completes in reasonable time
+        alerts.response = .alertSecondButtonReturn // "Continue Without SmartPaste"
         let expectation = expectation(description: "Permission request flow completes")
         
         // This test ensures the flow doesn't hang indefinitely
@@ -209,6 +244,19 @@ class AccessibilityPermissionManagerTests: XCTestCase {
 }
 
 // MARK: - Mock Classes for Testing
+
+/// Records alerts instead of running them modally; answers each with `response`
+final class AlertRecorder {
+    private(set) var titles: [String] = []
+    var response: NSApplication.ModalResponse = .abort
+    var onPresent: (() -> Void)?
+    
+    func present(_ alert: NSAlert) -> NSApplication.ModalResponse {
+        titles.append(alert.messageText)
+        onPresent?()
+        return response
+    }
+}
 
 /// Mock running application for testing SmartPaste scenarios
 class MockRunningApplication: NSRunningApplication, @unchecked Sendable {

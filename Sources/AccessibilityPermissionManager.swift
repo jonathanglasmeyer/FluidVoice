@@ -4,7 +4,25 @@ import ApplicationServices
 
 /// Dedicated manager for handling Accessibility permissions with proper explanations and error handling
 class AccessibilityPermissionManager {
-    
+
+    /// Shows an alert and returns the button the user picked
+    typealias AlertPresenter = (NSAlert) -> NSApplication.ModalResponse
+
+    private let presentAlert: AlertPresenter
+
+    /// - Parameter presentAlert: Injectable so tests can answer alerts without blocking on `runModal()`
+    init(presentAlert: AlertPresenter? = nil) {
+        self.presentAlert = presentAlert ?? Self.defaultAlertPresenter
+    }
+
+    private static func defaultAlertPresenter(_ alert: NSAlert) -> NSApplication.ModalResponse {
+        // Under XCTest nobody can dismiss a modal; treat every alert as dismissed
+        if NSClassFromString("XCTestCase") != nil {
+            return .abort
+        }
+        return alert.runModal()
+    }
+
     /// Checks if the app has Accessibility permission without prompting the user
     /// - Returns: true if permission is granted, false otherwise
     func checkPermission() -> Bool {
@@ -66,7 +84,7 @@ class AccessibilityPermissionManager {
             alert.addButton(withTitle: "Continue Without SmartPaste")
             alert.addButton(withTitle: "Learn More About Accessibility Permissions")
             
-            let response = alert.runModal()
+            let response = self.presentAlert(alert)
             
             switch response {
             case .alertFirstButtonReturn:
@@ -147,7 +165,7 @@ class AccessibilityPermissionManager {
         """
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Great!")
-        alert.runModal()
+        _ = self.presentAlert(alert)
     }
     
     /// Shows helpful message when permission request times out
@@ -173,7 +191,7 @@ class AccessibilityPermissionManager {
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: "Show Manual Instructions")
         
-        let response = alert.runModal()
+        let response = self.presentAlert(alert)
         if response == .alertSecondButtonReturn {
             showManualPermissionInstructions()
         }
@@ -212,7 +230,7 @@ class AccessibilityPermissionManager {
             """
             alert.alertStyle = .informational
             alert.addButton(withTitle: "I Understand")
-            alert.runModal()
+            _ = self.presentAlert(alert)
         }
     }
     
@@ -241,7 +259,7 @@ class AccessibilityPermissionManager {
             alert.addButton(withTitle: "Open System Settings")
             alert.addButton(withTitle: "Cancel")
             
-            let response = alert.runModal()
+            let response = self.presentAlert(alert)
             if response == .alertFirstButtonReturn {
                 self.openAccessibilitySystemSettings()
             }
@@ -318,7 +336,7 @@ class AccessibilityPermissionManager {
             alert.addButton(withTitle: "Open System Settings")
             alert.addButton(withTitle: "Continue Without SmartPaste")
             
-            let response = alert.runModal()
+            let response = self.presentAlert(alert)
             if response == .alertFirstButtonReturn {
                 self.openAccessibilitySystemSettings()
             }
@@ -339,7 +357,7 @@ class AccessibilityPermissionManager {
             """
             alert.alertStyle = .informational
             alert.addButton(withTitle: "OK")
-            alert.runModal()
+            _ = self.presentAlert(alert)
         }
     }
 }

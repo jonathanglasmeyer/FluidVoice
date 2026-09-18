@@ -11,6 +11,13 @@ class PasteManagerTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
+
+        // Paste results are posted via main.async; deliver whatever the previous test left queued,
+        // otherwise it lands in this test's observers and over-fulfills their expectations
+        let drained = expectation(description: "Main queue drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 1.0)
+
         pasteManager = PasteManager()
         mockApp = MockRunningApplication()
         

@@ -5,16 +5,11 @@ import ServiceManagement
 @testable import FluidVoice
 
 class SettingsViewTests: XCTestCase {
-    var mockKeychain: MockKeychain!
-    
     override func setUp() {
         super.setUp()
-        mockKeychain = MockKeychain()
-        
         // Clear UserDefaults for testing
         UserDefaults.standard.removeObject(forKey: "selectedMicrophone")
         UserDefaults.standard.removeObject(forKey: "globalHotkey")
-        UserDefaults.standard.removeObject(forKey: "useOpenAI")
         UserDefaults.standard.removeObject(forKey: "startAtLogin")
         UserDefaults.standard.removeObject(forKey: "immediateRecording")
         UserDefaults.standard.removeObject(forKey: "transcriptionHistoryEnabled")
@@ -22,12 +17,9 @@ class SettingsViewTests: XCTestCase {
     }
     
     override func tearDown() {
-        mockKeychain = nil
-        
         // Clean up UserDefaults
         UserDefaults.standard.removeObject(forKey: "selectedMicrophone")
         UserDefaults.standard.removeObject(forKey: "globalHotkey")
-        UserDefaults.standard.removeObject(forKey: "useOpenAI")
         UserDefaults.standard.removeObject(forKey: "startAtLogin")
         UserDefaults.standard.removeObject(forKey: "immediateRecording")
         UserDefaults.standard.removeObject(forKey: "transcriptionHistoryEnabled")
@@ -42,7 +34,6 @@ class SettingsViewTests: XCTestCase {
         // Test that default values are set correctly
         XCTAssertEqual(UserDefaults.standard.string(forKey: "selectedMicrophone") ?? "", "")
         XCTAssertEqual(UserDefaults.standard.string(forKey: "globalHotkey") ?? "Right Option", "Right Option")
-        XCTAssertEqual(UserDefaults.standard.bool(forKey: "useOpenAI"), false) // Default is false when not set
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "startAtLogin"), false) // Default is false when not set
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "immediateRecording"), false) // Default is Manual Start & Stop mode
     }
@@ -51,14 +42,12 @@ class SettingsViewTests: XCTestCase {
         // Set some values
         UserDefaults.standard.set("test-microphone", forKey: "selectedMicrophone")
         UserDefaults.standard.set("⌘⇧R", forKey: "globalHotkey")
-        UserDefaults.standard.set(false, forKey: "useOpenAI")
         UserDefaults.standard.set(true, forKey: "startAtLogin")
         UserDefaults.standard.set(true, forKey: "immediateRecording") // Enable Hotkey Start & Stop mode
         
         // Values should persist
         XCTAssertEqual(UserDefaults.standard.string(forKey: "selectedMicrophone"), "test-microphone")
         XCTAssertEqual(UserDefaults.standard.string(forKey: "globalHotkey"), "⌘⇧R")
-        XCTAssertEqual(UserDefaults.standard.bool(forKey: "useOpenAI"), false)
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "startAtLogin"), true)
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "immediateRecording"), true)
     }
@@ -93,83 +82,12 @@ class SettingsViewTests: XCTestCase {
         XCTAssertEqual(selectedMicrophone, testMicrophoneID)
     }
     
-    // MARK: - API Key Management Tests
+    // MARK: - View Construction Tests
     
-    func testAPIKeyKeychain() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        
-        // Test saving API key
-        settingsView.saveAPIKey("test-openai-key", service: "TestService", account: "TestOpenAI")
-        
-        // Test retrieving API key
-        let retrievedKey = settingsView.getAPIKey(service: "TestService", account: "TestOpenAI")
-        XCTAssertEqual(retrievedKey, "test-openai-key")
-        
-        // Test saving empty key (should delete)
-        settingsView.saveAPIKey("", service: "TestService", account: "TestOpenAI")
-        
-        let deletedKey = settingsView.getAPIKey(service: "TestService", account: "TestOpenAI")
-        XCTAssertNil(deletedKey)
-    }
-    
-    func testAPIKeyForDifferentProviders() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        
-        // Save keys for both providers
-        settingsView.saveAPIKey("openai-key", service: "TestService", account: "TestOpenAI")
-        settingsView.saveAPIKey("gemini-key", service: "TestService", account: "TestGemini")
-        
-        // Retrieve keys for both providers
-        let openAIKey = settingsView.getAPIKey(service: "TestService", account: "TestOpenAI")
-        let geminiKey = settingsView.getAPIKey(service: "TestService", account: "TestGemini")
-        
-        XCTAssertEqual(openAIKey, "openai-key")
-        XCTAssertEqual(geminiKey, "gemini-key")
-    }
-    
-    func testAPIKeyUpdate() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        
-        // Save initial key
-        settingsView.saveAPIKey("initial-key", service: "TestService", account: "TestUpdate")
-        
-        let initialKey = settingsView.getAPIKey(service: "TestService", account: "TestUpdate")
-        XCTAssertEqual(initialKey, "initial-key")
-        
-        // Update key
-        settingsView.saveAPIKey("updated-key", service: "TestService", account: "TestUpdate")
-        
-        let updatedKey = settingsView.getAPIKey(service: "TestService", account: "TestUpdate")
-        XCTAssertEqual(updatedKey, "updated-key")
-    }
-    
-    // MARK: - Provider Selection Tests
-    
-    func testProviderSelection() {
-        // Test OpenAI selection
-        UserDefaults.standard.set(true, forKey: "useOpenAI")
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "useOpenAI"))
-        
-        // Test Gemini selection
-        UserDefaults.standard.set(false, forKey: "useOpenAI")
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: "useOpenAI"))
-    }
-    
-    func testProviderSelectionPersistence() {
-        // Set to Gemini
-        UserDefaults.standard.set(false, forKey: "useOpenAI")
-        
-        // Value should persist
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: "useOpenAI"))
-        
-        // Set to OpenAI
-        UserDefaults.standard.set(true, forKey: "useOpenAI")
-        
-        // Value should persist
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "useOpenAI"))
+    func testSettingsViewInitializes() {
+        // SettingsView reads everything from @AppStorage; it has no injected dependencies
+        let view = SettingsView()
+        XCTAssertNotNil(view.body)
     }
     
     // MARK: - Global Hotkey Tests
@@ -222,16 +140,6 @@ class SettingsViewTests: XCTestCase {
         XCTAssertFalse(UserDefaults.standard.bool(forKey: "immediateRecording"))
     }
     
-    // MARK: - URL Generation Tests
-    
-    func testAPIKeyURLGeneration() {
-        let openAIURL = URL(string: "https://platform.openai.com/api-keys")!
-        let geminiURL = URL(string: "https://makersuite.google.com/app/apikey")!
-        
-        XCTAssertEqual(openAIURL.absoluteString, "https://platform.openai.com/api-keys")
-        XCTAssertEqual(geminiURL.absoluteString, "https://makersuite.google.com/app/apikey")
-    }
-    
     // MARK: - Keychain Security Tests
     
     func testKeychainDataEncoding() {
@@ -240,18 +148,6 @@ class SettingsViewTests: XCTestCase {
         let decodedString = String(data: encodedData, encoding: .utf8)
         
         XCTAssertEqual(decodedString, testKey)
-    }
-    
-    func testKeychainEmptyKeyHandling() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        
-        // Save empty key
-        settingsView.saveAPIKey("", service: "FluidVoice", account: "TestAccount")
-        
-        // Should return nil for empty key
-        let retrievedKey = settingsView.getAPIKey(service: "FluidVoice", account: "TestAccount")
-        XCTAssertNil(retrievedKey)
     }
     
     // MARK: - History Settings Tests
@@ -309,48 +205,6 @@ class SettingsViewTests: XCTestCase {
             _ = discoverySession.devices
         }
     }
-    
-    func testAPIKeyOperationPerformance() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        
-        measure {
-            for i in 0..<100 {
-                settingsView.saveAPIKey("test-key-\(i)", service: "TestService", account: "PerformanceTest")
-                _ = settingsView.getAPIKey(service: "TestService", account: "PerformanceTest")
-            }
-        }
-    }
-    
-    // MARK: - Error Handling Tests
-    
-    func testKeychainErrorHandling() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        
-        // Test with invalid service name
-        let invalidKey = settingsView.getAPIKey(service: "", account: "")
-        XCTAssertNil(invalidKey)
-    }
-    
-    func testConcurrentAPIKeyOperations() {
-        let mockKeychain = MockKeychainService()
-        let settingsView = SettingsView(keychainService: mockKeychain, skipOnAppear: true)
-        let expectation = XCTestExpectation(description: "Concurrent operations should complete")
-        expectation.expectedFulfillmentCount = 10
-        
-        // Perform concurrent operations
-        for i in 0..<10 {
-            DispatchQueue.global().async {
-                settingsView.saveAPIKey("concurrent-key-\(i)", service: "FluidVoice", account: "ConcurrentTest\(i)")
-                let retrievedKey = settingsView.getAPIKey(service: "FluidVoice", account: "ConcurrentTest\(i)")
-                XCTAssertEqual(retrievedKey, "concurrent-key-\(i)")
-                expectation.fulfill()
-            }
-        }
-        
-        wait(for: [expectation], timeout: 5.0)
-    }
 }
 
 // MARK: - Test Helpers and Extensions
@@ -360,7 +214,6 @@ extension SettingsViewTests {
         let keys = [
             "selectedMicrophone", 
             "globalHotkey", 
-            "useOpenAI", 
             "startAtLogin",
             "transcriptionHistoryEnabled",
             "transcriptionRetentionPeriod"
