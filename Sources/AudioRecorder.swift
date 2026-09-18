@@ -173,12 +173,12 @@ class AudioRecorder: NSObject, ObservableObject {
     }
     
     private func logSelectedMicrophone() {
-        let selectedMicrophoneID = UserDefaults.standard.string(forKey: "selectedMicrophone") ?? ""
+        let priority = MicrophonePriority.load()
         
-        if selectedMicrophoneID.isEmpty {
-            Logger.audioRecorder.infoDev("🎯 No specific microphone selected - will use intelligent default")
+        if priority.isEmpty {
+            Logger.audioRecorder.infoDev("🎯 No microphone priority list - will use intelligent default")
         } else {
-            Logger.audioRecorder.infoDev("🎯 User has selected microphone ID: '\(selectedMicrophoneID)'")
+            Logger.audioRecorder.infoDev("🎯 Microphone priority: \(priority.map(\.name).joined(separator: " → "))")
         }
     }
     

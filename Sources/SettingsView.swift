@@ -29,7 +29,6 @@ enum SettingsSection: String, CaseIterable {
 
 // Parakeet-only SettingsView with macOS sidebar pattern
 struct SettingsView: View {
-    @AppStorage("selectedMicrophone") private var selectedMicrophone = ""
     @AppStorage("globalHotkey") private var globalHotkey = "Right Option"
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = true
@@ -37,7 +36,6 @@ struct SettingsView: View {
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
 
     @State private var selectedSection: SettingsSection = .general
-    @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var isRecordingHotkey = false
     @State private var recordedModifiers: NSEvent.ModifierFlags = []
     @State private var recordedKey: Key?
@@ -54,9 +52,6 @@ struct SettingsView: View {
                 .frame(minWidth: 450)
         }
         .tint(Color(red: 0.3, green: 0.3, blue: 0.3))
-        .onAppear {
-            loadAvailableMicrophones()
-        }
     }
 
     // MARK: - Sidebar
@@ -159,16 +154,7 @@ struct SettingsView: View {
             // Audio Settings Group
             SettingsCard {
                 VStack(spacing: 0) {
-                    SettingsRow("Microphone") {
-                        Picker("", selection: $selectedMicrophone) {
-                            Text("System Default").tag("")
-                            ForEach(availableMicrophones, id: \.uniqueID) { device in
-                                Text(device.localizedName).tag(device.uniqueID)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: 250)
-                    }
+                    MicrophonePriorityEditor()
 
                     Divider()
                         .padding(.horizontal, 16)
@@ -386,20 +372,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Helper Functions
-    private func loadAvailableMicrophones() {
-        Task {
-            let devices = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.microphone],
-                mediaType: .audio,
-                position: .unspecified
-            ).devices
-
-            await MainActor.run {
-                self.availableMicrophones = devices
-            }
-        }
-    }
-
     private func isFnKeySetToDoNothing() -> Bool {
         // Check macOS Fn key setting (com.apple.HIToolbox AppleFnUsageType)
         // 0 = Do Nothing, 1 = Change Input Source, 2 = Show Emoji & Symbols, etc.
