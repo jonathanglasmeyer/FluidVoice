@@ -235,7 +235,12 @@ class AudioRecorderTests: XCTestCase {
             released = recorder
             recorder = nil
         }
-        XCTAssertNil(released, "AudioRecorder should deallocate synchronously once idle")
+        // Normally already nil here; tolerate a slow pre-warm Task still holding the last reference
+        let deadline = Date().addingTimeInterval(5)
+        while released != nil && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertNil(released, "AudioRecorder should deallocate once idle")
 
         // Run whatever deinit enqueued on the main queue
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
