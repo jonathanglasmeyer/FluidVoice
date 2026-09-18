@@ -216,7 +216,31 @@ class AudioRecorderTests: XCTestCase {
         XCTAssertNil(url)
         XCTAssertFalse(audioRecorder.isRecording)
     }
-    
+
+    // MARK: - Lifecycle Tests
+
+    func testDeinitLeavesNoWorkReferencingRecorder() {
+        // Regression: deinit queued a main-queue block capturing self; it ran after deallocation and
+        // corrupted the heap (crashed a later test). Deterministic only under `--sanitize=address`.
+        weak var released: AudioRecorder?
+        autoreleasepool {
+            var recorder: AudioRecorder? = AudioRecorder()
+            recorder?.hasPermission = true
+            _ = recorder?.startRecording()
+
+            // Let the pre-warm Task and queued state updates finish, so the release below is the last
+            // reference and deinit runs synchronously on main (as in tearDown)
+            RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+
+            released = recorder
+            recorder = nil
+        }
+        XCTAssertNil(released, "AudioRecorder should deallocate synchronously once idle")
+
+        // Run whatever deinit enqueued on the main queue
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+    }
+
     // MARK: - Performance Tests
     
     func testRecordingPerformance() {

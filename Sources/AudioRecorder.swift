@@ -496,19 +496,15 @@ class AudioRecorder: NSObject, ObservableObject {
         // HAL AudioUnit cleanup is handled in halMicSource.stop(), no additional work needed
     }
     
+    /// Called from deinit: must not hand `self` to escaping closures, they would run after deallocation
     private func forceCleanup() {
         Logger.audioRecorder.infoDev("🧹 Force cleanup - stopping everything")
-        
+
         if halMicSource.running {
             halMicSource.stop()
         }
-        
+
         audioFile = nil
-        
-        DispatchQueue.main.async {
-            self.isRecording = false
-            self.audioLevel = 0.0
-        }
     }
     
     private func cleanupRecording() {
