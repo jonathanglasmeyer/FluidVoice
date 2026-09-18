@@ -14,7 +14,7 @@ build-dev:
 
 # Build production release and install to /Applications
 release:
-    CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25" ./build.sh
+    CODE_SIGN_IDENTITY="1916CCA1F909509F44384DFB1768B333BAE721F3" ./build.sh
     @echo "📦 Installing to /Applications..."
     @rm -rf /Applications/FluidVoice.app
     @cp -r FluidVoice.app /Applications/
@@ -22,7 +22,7 @@ release:
 
 # Build production release (without installing)
 build-release:
-    CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25" ./build.sh
+    CODE_SIGN_IDENTITY="1916CCA1F909509F44384DFB1768B333BAE721F3" ./build.sh
 
 # Run tests
 test:

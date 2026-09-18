@@ -52,7 +52,7 @@
 ## Build & Signing
 
 **Dev:** `./build-dev.sh` oder `fv-build`  
-**Release:** `CODE_SIGN_IDENTITY="EFC93994F7FFF5A8EC85E5CD41174673C1EDCD25" ./build.sh`  
+**Release:** `CODE_SIGN_IDENTITY="1916CCA1F909509F44384DFB1768B333BAE721F3" ./build.sh`  
 **Bundle ID:** com.fluidvoice.app  
 **Nie:** `swift build` verwenden
 
