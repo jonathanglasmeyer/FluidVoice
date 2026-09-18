@@ -53,7 +53,7 @@ echo "📦 Building with cache at $SWIFT_BUILD_CACHE_PATH..."
 
 # Use all available cores, debug mode for faster compilation
 CORE_COUNT=$(sysctl -n hw.logicalcpu)
-swift build \
+xcrun swift build \
   -c debug \
   --build-path .build-dev \
   -j $CORE_COUNT
@@ -75,37 +75,11 @@ if [ $BUILD_SUCCESS -eq 0 ]; then
     cp "Info.plist" "$APP_BUNDLE/Contents/"
   fi
   
-  # Ensure UV binary is available for Python package management
-  UV_BIN_PATH="Sources/Resources/bin/uv"
-  if [ ! -f "$UV_BIN_PATH" ]; then
-    echo "📦 Downloading UV binary for Python package management..."
-    mkdir -p "Sources/Resources/bin"
-    
-    # Detect architecture for the correct UV binary
-    ARCH=$(uname -m)
-    if [ "$ARCH" = "arm64" ]; then
-      UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz"
-    else
-      UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-apple-darwin.tar.gz"
-    fi
-    
-    # Download and extract UV binary
-    curl -L "$UV_URL" | tar -xz -C "Sources/Resources/bin" --strip-components=1
-    chmod +x "$UV_BIN_PATH"
-    echo "✅ UV binary downloaded and ready"
-  fi
-  
-  # Copy Bundle resources (Python scripts, etc.) first
+  # Copy SwiftPM resource bundle
   BUNDLE_RESOURCES=".build-dev/arm64-apple-macosx/debug/FluidVoice_FluidVoice.bundle"
   if [ -d "$BUNDLE_RESOURCES" ]; then
     echo "📦 Copying bundle resources..."
     cp -r "$BUNDLE_RESOURCES"/* "$APP_BUNDLE/Contents/Resources/"
-  fi
-  
-  # Copy additional Resources directory 
-  if [ -d "Sources/Resources" ]; then
-    echo "🔗 Copying additional resources..."
-    cp -r "Sources/Resources"/* "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
   fi
   
   # Code sign if identity available

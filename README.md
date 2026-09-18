@@ -7,7 +7,7 @@
 ![Swift](https://img.shields.io/badge/Swift-5.9+-red?style=flat-square&logo=swift)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 ![CoreML](https://img.shields.io/badge/CoreML-✓-blue?style=flat-square)
-![MLX](https://img.shields.io/badge/MLX-✓-purple?style=flat-square)
+![CoreML](https://img.shields.io/badge/CoreML-✓-purple?style=flat-square)
 
 macOS menu bar app for audio transcription that works system-wide in any application.
 
@@ -50,9 +50,9 @@ Text appears instantly in your current application—no copy/paste needed.
 ### Local Transcription
 - **[Parakeet v3 Multilingual](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)**: NVIDIA's 600M parameter model optimized for speed and accuracy
   - 25 European languages with automatic detection
-  - Daemon mode for zero cold-start latency
+  - Preloaded at launch for zero cold-start latency
   - Sub-second transcription on Apple Silicon
-  - Runs entirely offline via MLX
+  - Runs entirely offline on the Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) (CoreML, no Python)
 
 ### Documentation
 - **Features**: See [`docs/features/`](docs/features/) for planned features and [`docs/features/done/`](docs/features/done/) for completed implementations
@@ -110,8 +110,8 @@ just kill           # Kill running app processes
 - Then restart the app and grant permission again
 
 **Parakeet Setup Issues**
-- Click "Download Parakeet v3 Model" in settings
-- Check that download completed (~600MB)
+- Restart the app: a missing model opens the download screen
+- The first load after download compiles the model for the Neural Engine and takes longer once
 
 ## Contributing
 
@@ -119,4 +119,4 @@ See [CLAUDE.md](CLAUDE.md) for development setup and guidelines.
 
 ## Acknowledgments
 
-Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper). Built with SwiftUI, AppKit, MLX, and [Parakeet v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3). MIT License.
+Based on [mazdak/AudioWhisper](https://github.com/mazdak/AudioWhisper). Built with SwiftUI, AppKit, [FluidAudio](https://github.com/FluidInference/FluidAudio), and [Parakeet v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3). MIT License.

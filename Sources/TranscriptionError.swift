@@ -13,7 +13,6 @@ enum TranscriptionError {
     case audioProcessingError
     case modelNotFound(model: String)
     case insufficientStorage
-    case pythonConfigurationError
     case generalError(message: String)
     
     /// Determines the error type from an error message
@@ -63,9 +62,9 @@ enum TranscriptionError {
             return .insufficientStorage
         }
         
-        // Python errors
-        if lowercased.contains("python") || lowercased.contains("parakeet") {
-            return .pythonConfigurationError
+        // Parakeet model missing
+        if lowercased.contains("parakeet") && lowercased.contains("not downloaded") {
+            return .modelNotFound(model: "Parakeet v3")
         }
         
         // Audio processing errors
@@ -96,8 +95,6 @@ enum TranscriptionError {
             return "Download Model"
         case .insufficientStorage:
             return "Manage Storage"
-        case .pythonConfigurationError:
-            return "Configure Python"
         }
     }
     
@@ -105,7 +102,7 @@ enum TranscriptionError {
     var secondaryButtonTitle: String? {
         switch self {
         case .missingAPIKey, .invalidAPIKey, .microphonePermissionDenied,
-             .microphonePermissionRestricted, .modelNotFound, .pythonConfigurationError:
+             .microphonePermissionRestricted, .modelNotFound:
             return "Cancel"
         default:
             return nil
@@ -115,7 +112,7 @@ enum TranscriptionError {
     /// Whether this error should show a settings button
     var shouldShowSettingsButton: Bool {
         switch self {
-        case .missingAPIKey, .invalidAPIKey, .modelNotFound, .pythonConfigurationError:
+        case .missingAPIKey, .invalidAPIKey, .modelNotFound:
             return true
         default:
             return false
@@ -157,8 +154,6 @@ enum TranscriptionError {
             return "Model '\(model)' not found. Please download it in Settings."
         case .insufficientStorage:
             return "Insufficient storage space. Please free up some space and try again."
-        case .pythonConfigurationError:
-            return "Python configuration error. Please check your Python path and ensure parakeet-mlx is installed."
         case .generalError(let message):
             return message
         }

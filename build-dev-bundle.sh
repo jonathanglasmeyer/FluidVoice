@@ -25,17 +25,6 @@ mkdir -p FluidVoice-debug.app/Contents/Resources
 # Copy executable
 cp .build-dev/debug/FluidVoice FluidVoice-debug.app/Contents/MacOS/
 
-# Copy Python scripts (essential for functionality)
-cp Sources/parakeet_transcribe_pcm.py FluidVoice-debug.app/Contents/Resources/ 2>/dev/null || true
-cp Sources/mlx_semantic_correct.py FluidVoice-debug.app/Contents/Resources/ 2>/dev/null || true
-cp Sources/Resources/pyproject.toml FluidVoice-debug.app/Contents/Resources/ 2>/dev/null || true
-
-# Copy UV binary if present
-if [ -f "Sources/Resources/bin/uv" ]; then
-    mkdir -p FluidVoice-debug.app/Contents/Resources/bin
-    cp Sources/Resources/bin/uv FluidVoice-debug.app/Contents/Resources/bin/
-fi
-
 # Create minimal Info.plist (essential for Bundle.main)
 cat > FluidVoice-debug.app/Contents/Info.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>

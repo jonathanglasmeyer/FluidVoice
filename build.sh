@@ -108,7 +108,7 @@ mkdir -p "$SWIFT_BUILD_CACHE_PATH"
 # Build for release with optimizations
 echo "📦 Building for release with cache at $SWIFT_BUILD_CACHE_PATH..."
 CORE_COUNT=$(sysctl -n hw.logicalcpu)
-swift build \
+xcrun swift build \
   -c release \
   --arch arm64 --arch x86_64 \
   -j $CORE_COUNT \
@@ -124,70 +124,12 @@ fi
 echo "Creating app bundle..."
 mkdir -p FluidVoice.app/Contents/MacOS
 mkdir -p FluidVoice.app/Contents/Resources
-mkdir -p FluidVoice.app/Contents/Resources/bin
 
 # Set build number for Info.plist
 BUILD_NUMBER="${VERSION//./}"
 
 # Copy executable (universal binary)
 cp .build/apple/Products/Release/FluidVoice FluidVoice.app/Contents/MacOS/
-
-# Copy Python scripts for Parakeet and MLX support
-if [ -f "Sources/parakeet_transcribe_pcm.py" ]; then
-  cp Sources/parakeet_transcribe_pcm.py FluidVoice.app/Contents/Resources/
-  echo "Copied Parakeet PCM Python script"
-else
-  echo "⚠️ parakeet_transcribe_pcm.py not found, Parakeet functionality will not work"
-fi
-
-if [ -f "Sources/parakeet_daemon.py" ]; then
-  cp Sources/parakeet_daemon.py FluidVoice.app/Contents/Resources/
-  echo "Copied Parakeet daemon Python script"
-else
-  echo "⚠️ parakeet_daemon.py not found, Parakeet daemon mode will not work"
-fi
-
-if [ -f "Sources/mlx_semantic_correct.py" ]; then
-  cp Sources/mlx_semantic_correct.py FluidVoice.app/Contents/Resources/
-  echo "Copied MLX semantic correction Python script"
-else
-  echo "⚠️ mlx_semantic_correct.py not found, MLX semantic correction will not work"
-fi
-
-# Bundle uv (Apple Silicon). Download if needed, prefer repo copy, else fall back to system uv
-if [ -f "Sources/Resources/bin/uv" ]; then
-  cp Sources/Resources/bin/uv FluidVoice.app/Contents/Resources/bin/uv
-  chmod +x FluidVoice.app/Contents/Resources/bin/uv
-  echo "Bundled uv binary (from repo)"
-else
-  echo "📦 Downloading UV binary for Python package management..."
-  mkdir -p "Sources/Resources/bin"
-  
-  # Detect architecture for the correct UV binary
-  ARCH=$(uname -m)
-  if [ "$ARCH" = "arm64" ]; then
-    UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz"
-  else
-    UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-apple-darwin.tar.gz"
-  fi
-  
-  # Download and extract UV binary
-  curl -L "$UV_URL" | tar -xz -C "Sources/Resources/bin" --strip-components=1
-  chmod +x "Sources/Resources/bin/uv"
-  
-  # Now copy to app bundle
-  cp Sources/Resources/bin/uv FluidVoice.app/Contents/Resources/bin/uv
-  chmod +x FluidVoice.app/Contents/Resources/bin/uv
-  echo "✅ UV binary downloaded and bundled"
-fi
-
-# Bundle pyproject.toml and uv.lock if present
-if [ -f "Sources/Resources/pyproject.toml" ]; then
-  cp Sources/Resources/pyproject.toml FluidVoice.app/Contents/Resources/pyproject.toml
-  echo "Bundled pyproject.toml"
-else
-  echo "ℹ️ No pyproject.toml found in Sources/Resources"
-fi
 
 # Note: AudioProcessorCLI binary no longer needed - using direct Swift audio processing
 
@@ -282,11 +224,6 @@ sign_app() {
     echo "🔏 Code signing app with: $identity_name ($identity)"
   else
     echo "🔏 Code signing app with: $identity"
-  fi
-
-  # Sign uv binary if present (nested executable)
-  if [ -f "FluidVoice.app/Contents/Resources/bin/uv" ]; then
-    codesign --force --sign "$identity" --options runtime --entitlements FluidVoice.entitlements FluidVoice.app/Contents/Resources/bin/uv
   fi
 
   codesign --force --deep --sign "$identity" --options runtime --entitlements FluidVoice.entitlements --identifier "com.fluidvoice.app" FluidVoice.app

@@ -95,40 +95,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // App continues with in-memory fallback
         }
         
-        // Background preloading now handled by ParakeetDaemon (Parakeet-only architecture)
-        Logger.app.infoDev("✅ Using Parakeet-only transcription")
-        
-        // Initialize MLX model cache at startup (async, non-blocking)
-        Logger.app.infoDev("🔄 Starting MLX Task...")
+        // Preload Parakeet (FluidAudio/CoreML) so the first dictation has no cold start
         Task {
-            await MLXModelManager.shared.refreshModelList()
+            let modelAvailable = ParakeetService.isModelAvailable
+            Logger.app.infoDev("Parakeet model available at startup: \(modelAvailable)")
 
-            // Set cached flags for instant transcription checks
-            let downloadedModels = await MLXModelManager.shared.downloadedModels
-            ParakeetService.isModelAvailable = downloadedModels.contains(MLXModelManager.parakeetRepo)
-
-            Logger.app.infoDev("MLX model cache initialized at startup - Parakeet available: \(ParakeetService.isModelAvailable)")
-
-            // Early daemon initialization for zero cold start (always enabled for optimal performance)
-            if ParakeetService.isModelAvailable {
+            if modelAvailable {
                 do {
-                    Logger.app.infoDev("🚀 Starting Parakeet daemon preload...")
-                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
-                        Logger.app.infoDev("FluidVoiceApp uv: \(msg)")
-                    }
-                    try await ParakeetDaemon.shared.start(pythonPath: pyURL.path)
-                    Logger.app.infoDev("✅ Parakeet daemon preloaded at startup - zero cold start ready")
+                    try await ParakeetService.shared.prepare()
+                    Logger.app.infoDev("✅ Parakeet preloaded at startup")
                 } catch {
-                    Logger.app.infoDev("⚠️ Daemon preload failed (will fallback to lazy loading): \(error.localizedDescription)")
+                    Logger.app.errorDev("⚠️ Parakeet preload failed (will retry on first transcription): \(error.localizedDescription)")
                 }
-            } else {
-                // Check if user has Parakeet selected but model is missing
-                let currentProvider = UserDefaults.standard.string(forKey: "transcriptionProvider") ?? TranscriptionProvider.local.rawValue
-                if currentProvider == TranscriptionProvider.parakeet.rawValue {
-                    Logger.app.infoDev("⚠️ Parakeet provider selected but model missing - showing download screen")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        WelcomeWindow.showWelcomeDialog(initialStep: .modelDownload)
-                    }
+            } else if !AppSetupHelper.checkFirstRun() {
+                // Existing users (incl. migration from the old MLX runtime): first-run welcome covers the download otherwise
+                Logger.app.infoDev("⚠️ Parakeet model missing - showing download screen")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    WelcomeWindow.showWelcomeDialog(initialStep: .modelDownload)
                 }
             }
         }
@@ -490,11 +473,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Cleanup crash reporter
         CrashReporter.shared.cleanup()
         
-        // Gracefully shutdown Parakeet daemon
-        Task {
-            await ParakeetDaemon.shared.stop()
-        }
-        
         // Cleanup is handled by the deinitializers of the helper classes
         AppSetupHelper.cleanupOldTemporaryFiles()
     }
@@ -615,8 +593,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 // Parakeet-only transcription (simplified architecture)
                 Logger.app.infoDev("🦜 Using Parakeet transcription")
-                let pythonPath = await PythonDetector.findPythonWithMLX() ?? "/usr/bin/python3"
-                let transcribedText = try await ParakeetService.shared.transcribe(audioFileURL: finalAudioURL, pythonPath: pythonPath)
+                let transcribedText = try await ParakeetService.shared.transcribe(audioFileURL: finalAudioURL)
 
                 Logger.app.infoDev("✅ Transcription completed: \(transcribedText.prefix(50))...")
 

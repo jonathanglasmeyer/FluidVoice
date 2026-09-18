@@ -62,9 +62,10 @@
 
 ## Dependencies
 
-**Core:** SwiftUI+AppKit, AVFoundation, Alamofire, WhisperKit, HotKey, KeychainAccess  
-**Pipeline:** AVFoundation → WhisperKit/APIs → Clipboard  
-**Local AI:** WhisperKit (CoreML), Parakeet (MLX/Python subprocess)  
+**Core:** SwiftUI+AppKit, AVFoundation, Alamofire, HotKey, KSCrash, FluidAudio  
+**Pipeline:** AVFoundation → Parakeet v3 (FluidAudio, CoreML/ANE) → FastVocabularyCorrector → Paste  
+**Model cache:** `~/Library/Application Support/FluidAudio/Models/` (`just reset-model` löscht ihn)  
+**Toolchain:** Swift immer via `xcrun swift` (swiftly-Toolchain im PATH bricht mit `-target-arch-variant`)  
 **Async:** Swift Concurrency preferred über Combine  
 **Regel:** Existing Dependencies verwenden, keine neuen einführen
 

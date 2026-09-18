@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import AVFoundation
+import FluidAudio
 
 enum SetupStep: CaseIterable {
     case welcome
@@ -27,7 +28,6 @@ struct WelcomeView: View {
     @State private var downloadProgress: Double = 0.0
     @State private var downloadStatus = "Preparing download..."
     @State private var isDownloading = false
-    @StateObject private var modelManager = MLXModelManager.shared
     @State private var testText = ""
     @State private var currentHotkey = "Right Option"
 
@@ -328,8 +328,7 @@ struct WelcomeView: View {
         case .permissions:
             if permissionsGranted {
                 // Check if model is already downloaded before showing download step
-                let repo = MLXModelManager.parakeetRepo
-                if modelManager.downloadedModels.contains(repo) {
+                if ParakeetService.isModelAvailable {
                     currentStep = .complete
                 } else {
                     currentStep = .modelDownload
@@ -403,59 +402,39 @@ struct WelcomeView: View {
     }
 
     private func startModelDownload() {
-        let repo = MLXModelManager.parakeetRepo
-
         isDownloading = true
         downloadProgress = 0.0
         downloadStatus = "Starting download..."
 
         Task {
-            await modelManager.downloadParakeetModel()
-
-            // Wait for download to complete
-            while await modelManager.isDownloading[repo] == true {
-                // Update local status from manager
-                if let status = await modelManager.downloadProgress[repo] {
-                    downloadStatus = status
-                    print("📊 WelcomeView: Updated status to: \(status)")
-                }
-                if let percent = await modelManager.downloadPercent[repo] {
-                    downloadProgress = percent
-                    print("📊 WelcomeView: Updated progress to: \(percent)")
-                }
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds (faster polling)
-            }
-
-            // One final update after download completes
-            if let finalPercent = await modelManager.downloadPercent[repo] {
-                downloadProgress = finalPercent
-                print("📊 WelcomeView: Final progress: \(finalPercent)")
-            }
-
-            // Refresh model list to update availability flag
-            await modelManager.refreshModelList()
-            let downloadedModels = await modelManager.downloadedModels
-            ParakeetService.isModelAvailable = downloadedModels.contains(MLXModelManager.parakeetRepo)
-            print("📊 WelcomeView: ParakeetService.isModelAvailable updated to: \(ParakeetService.isModelAvailable)")
-
-            // Preload Parakeet daemon for zero cold start
-            if ParakeetService.isModelAvailable {
-                do {
-                    Logger.app.infoDev("📊 WelcomeView: Starting Parakeet daemon preload...")
-                    let pyURL = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
-                        Logger.app.infoDev("WelcomeView uv: \(msg)")
+            do {
+                // Download + ANE compile + load, so the first dictation is instant
+                try await ParakeetService.shared.prepare { progress in
+                    Task { @MainActor in
+                        downloadProgress = progress.fractionCompleted
+                        downloadStatus = Self.statusText(for: progress.phase)
                     }
-                    try await ParakeetDaemon.shared.start(pythonPath: pyURL.path)
-                    Logger.app.infoDev("📊 WelcomeView: Parakeet daemon preloaded successfully")
-                } catch {
-                    Logger.app.infoDev("⚠️ WelcomeView: Daemon preload failed: \(error.localizedDescription)")
                 }
+                downloadStatus = "Download complete!"
+                downloadProgress = 1.0
+                isDownloading = false
+                currentStep = .complete
+            } catch {
+                Logger.app.errorDev("⚠️ WelcomeView: Parakeet download failed: \(error.localizedDescription)")
+                downloadStatus = "Download failed: \(error.localizedDescription)"
+                isDownloading = false
             }
+        }
+    }
 
-            downloadStatus = "Download complete!"
-            downloadProgress = 1.0
-            isDownloading = false
-            currentStep = .complete
+    private static func statusText(for phase: DownloadPhase) -> String {
+        switch phase {
+        case .listing:
+            return "Preparing download..."
+        case .downloading(let completedFiles, let totalFiles):
+            return "Downloading Parakeet v3 model (\(completedFiles)/\(totalFiles) files)..."
+        case .compiling:
+            return "Optimizing model for the Neural Engine (one-time)..."
         }
     }
 

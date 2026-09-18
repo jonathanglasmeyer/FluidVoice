@@ -26,7 +26,7 @@ build-release:
 
 # Run tests
 test:
-    swift test --parallel --build-path .build-dev
+    xcrun swift test --parallel --build-path .build-dev
 
 # Stream app logs
 logs:
@@ -41,12 +41,6 @@ run:
 kill:
     pkill -f FluidVoice || true
 
-# Reset all Python dependencies (venv, uv cache, MLX models)
-reset-deps:
-    @echo "🧹 Resetting Python dependencies..."
-    @rm -rf ~/Library/Application\ Support/FluidVoice/python_project/ && echo "✅ Deleted Python venv" || echo "⚠️  No Python venv found"
-    @rm -rf ~/.cache/uv/ && echo "✅ Deleted uv cache" || echo "⚠️  No uv cache found"
-    @rm -rf ~/.cache/huggingface/ && echo "✅ Deleted HuggingFace cache" || echo "⚠️  No HuggingFace cache found"
-    @rm -rf ~/.cache/pip && echo "✅ Deleted pip cache" || echo "⚠️  No pip cache found"
-    @rm -rf ~/.cache/mlx && echo "✅ Deleted MLX cache" || echo "⚠️  No MLX cache found"
-    @echo "🎯 Dependencies reset complete. Restart app to re-download."
+# Delete the Parakeet CoreML model cache (re-downloaded on next launch)
+reset-model:
+    @rm -rf ~/Library/Application\ Support/FluidAudio/Models/ && echo "✅ Deleted FluidAudio model cache"

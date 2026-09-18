@@ -13,7 +13,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.10.2"),
         .package(url: "https://github.com/soffes/HotKey", from: "0.2.1"),
-        .package(url: "https://github.com/kstenerud/KSCrash.git", .upToNextMajor(from: "2.3.0"))
+        .package(url: "https://github.com/kstenerud/KSCrash.git", .upToNextMajor(from: "2.3.0")),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", .upToNextMinor(from: "0.15.7"))
     ],
     targets: [
         .executableTarget(
@@ -21,16 +22,13 @@ let package = Package(
             dependencies: [
                 "Alamofire",
                 "HotKey",
-                .product(name: "Installations", package: "KSCrash")
+                .product(name: "Installations", package: "KSCrash"),
+                "FluidAudio"
             ],
             path: "Sources",
-            exclude: ["__pycache__", "VersionInfo.swift.template"],
+            exclude: ["VersionInfo.swift.template"],
             resources: [
-                .process("Assets.xcassets"),
-                .copy("parakeet_transcribe_pcm.py"),
-                .copy("parakeet_daemon.py"),
-                // Bundle additional resources like uv binary and lock files
-                .copy("Resources")
+                .process("Assets.xcassets")
             ],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug)),
@@ -41,7 +39,7 @@ let package = Package(
             name: "FluidVoiceTests",
             dependencies: ["FluidVoice"],
             path: "Tests",
-            exclude: ["README.md", "test_parakeet_transcribe.py"],
+            exclude: ["README.md"],
             swiftSettings: [
                 .define("DEBUG", .when(configuration: .debug))
             ]
